@@ -29,6 +29,28 @@
   #win .big { font-size: 64px; font-weight: 900; letter-spacing: 2px;
     text-shadow: 0 4px 16px rgba(0,0,0,.5); }
   #win .sub { font-size: 20px; margin-top: 8px; opacity: .9; }
+  /* On-screen flip buttons (touch only) — hold to rotate the sled mid-air, like ◄ ► / A,D */
+  .flipbtn { position: absolute; bottom: 22px; width: 78px; height: 78px; border-radius: 50%;
+    display: none; align-items: center; justify-content: center; font-size: 34px; color: #fff;
+    background: rgba(255,255,255,.16); border: 2px solid rgba(255,255,255,.45);
+    text-shadow: 0 2px 4px rgba(0,0,0,.5); touch-action: none; -webkit-user-select: none; user-select: none; }
+  .flipbtn:active { background: rgba(255,255,255,.36); }
+  #flipL { left: 20px; } #flipR { right: 20px; }
+  @media (hover: none) and (pointer: coarse) {       /* phones/tablets */
+    .flipbtn { display: flex; }
+    #help { display: none; }                          /* keyboard hints don't apply; buttons are self-evident */
+  }
+  /* "Rotate to landscape" gate — best played wide. Shown only on touch devices in portrait. */
+  #rotate { position: absolute; inset: 0; z-index: 50; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    text-align: center; padding: 28px; background: #0b1a2b; color: #fff;
+    font-family: system-ui, sans-serif; font-size: 22px; font-weight: 800; letter-spacing: .5px; }
+  #rotate .icon { font-size: 72px; animation: tip 1.8s ease-in-out infinite; }
+  #rotate .sub { font-size: 15px; font-weight: 500; opacity: .8; }
+  @keyframes tip { 0%,50% { transform: rotate(0); } 75%,100% { transform: rotate(-90deg); } }
+  @media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+    #rotate { display: flex; }
+  }
 </style>
 </head>
 <body>
@@ -43,7 +65,10 @@
   <div id="help">Drag back &amp; release to send it off the kicker • ◄ ► / A,D to flip &amp; level out mid-air • R resets • M mutes</div>
   <button id="restartgame">⟲ Reset game</button>
   <button id="restart">↻ Retry level</button>
+  <div id="flipL" class="flipbtn">◄</div>
+  <div id="flipR" class="flipbtn">►</div>
   <div id="win"><div class="big">SENT IT! 🎉</div><div class="sub" id="winsub"></div></div>
+  <div id="rotate"><div class="icon">📱</div><div>Turn your phone sideways<br>to send it 🛷</div><div class="sub">landscape only</div></div>
 </div>
 
 <script src="matter.min.js"></script><!-- Matter.js 0.20.0 vendored locally (no external CDN dependency) -->
@@ -269,6 +294,17 @@ window.addEventListener('keyup', e => {
   if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') keys.left  = false;
   if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
 });
+// ---- Touch flip buttons: hold to rotate, same as the arrow keys ----
+function holdFlip(id, side) {
+  const el = document.getElementById(id);
+  const set = on => e => { keys[side] = on; e.preventDefault(); e.stopPropagation(); };
+  el.addEventListener('pointerdown',   set(true));
+  el.addEventListener('pointerup',     set(false));
+  el.addEventListener('pointercancel', set(false));
+  el.addEventListener('pointerleave',  set(false));
+}
+holdFlip('flipL', 'left');
+holdFlip('flipR', 'right');
 
 // ---- Scoring ----
 function angleOff(a){ let m = ((a % Math.PI)+Math.PI)%Math.PI; return Math.min(m, Math.PI-m); }
