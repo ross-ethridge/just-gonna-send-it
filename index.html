@@ -98,9 +98,20 @@ const ANCHOR = { x: 200, y: GROUND_Y - 18 };          // sled start (long runway
 // Kicker launcher = a steep concave arc that flings the sled into a big spinning
 // backflip jump. (A truly rideable loop traps the sled in 2D physics, so the crazy
 // flips come from a steep kicker + mid-air rotation control instead.)
-const RAMP = { x0: 900, R: 600, theta: 0.77 };          // GIANT X-Games quarterpipe: ~44° launch, ~15 ft lip, long sweeping radius + many segments — dramatic but smooth (≤~45° so it still flies downrange, not straight up)
-RAMP.x1   = RAMP.x0 + RAMP.R * Math.sin(RAMP.theta);
-RAMP.topY = GROUND_Y - RAMP.R * (1 - Math.cos(RAMP.theta));
+// X-Games drop-in profile: a long, nearly-flat APPROACH (~13 ft at ~3°) so the sled stays
+// planted, then an eased circular ARC up to the ~42° kick (~15 ft lip). Surface = a sampled
+// polyline so the onset is gradual (no abrupt curved base that bounces/flips the nose).
+const RAMP = { x0: 720, A: 0.05, La: 150, R: 600, theta: 0.74 };
+RAMP.pts = (() => {
+  const { x0, A, La, R, theta } = RAMP, P = [];
+  for (let i=0;i<=12;i++){ const t=i/12; P.push({ x:x0 + t*La*Math.cos(A), y:GROUND_Y - t*La*Math.sin(A), ang:A }); }   // gentle straight approach
+  const sx = (x0 + La*Math.cos(A)) - (x0 + R*Math.sin(A));       // shift the arc to join the approach end with matching slope
+  const sy = (GROUND_Y - La*Math.sin(A)) - (GROUND_Y - R*(1-Math.cos(A)));
+  for (let i=1;i<=70;i++){ const phi = A + (theta-A)*i/70; P.push({ x:x0 + R*Math.sin(phi) + sx, y:GROUND_Y - R*(1-Math.cos(phi)) + sy, ang:phi }); }  // eased arc → kick
+  return P;
+})();
+RAMP.x1 = RAMP.pts[RAMP.pts.length-1].x;
+RAMP.topY = RAMP.pts[RAMP.pts.length-1].y;
 const LIP = { x: RAMP.x1, y: RAMP.topY };               // takeoff point
 // Ramp→castle distance, PER LEVEL (the ~71 mph arc lands ~3220; towers sit in its steep
 // descent zone so the sled drops INTO them rather than cresting over). Tune each level here.
@@ -112,11 +123,6 @@ const LAUNCH_EFF = 0.72;                                // measured: lip speed �
 const POWER = 0.05;            // drag -> launch speed
 const MAX_DRAG = 390;          // full send ~71 mph — reaches the FAR towers; near ones need a softer pull (that's the aim)
 
-// Point on the ramp surface for arc parameter phi (0..theta)
-function rampSurface(phi) {
-  return { x: RAMP.x0 + RAMP.R * Math.sin(phi),
-           y: GROUND_Y - RAMP.R * (1 - Math.cos(phi)) };
-}
 
 // Uniform-scale + letterbox so geometry never distorts on resize
 const view = { scale: 1, offX: 0, offY: 0, dpr: 1 };
@@ -231,17 +237,14 @@ function buildLevel() {
 
   const ground = Bodies.rectangle(WORLD_W/2, GROUND_Y + 80, WORLD_W + 600, 160,
     { isStatic: true, label: 'ground', friction: 0.008 });
-  // ---- Kicker arc launcher ----
-  const segs = [];
-  const N = 88;
-  for (let i = 0; i < N; i++) {
-    const phi = RAMP.theta * (i + 0.5) / N;
-    const P = rampSurface(phi);
-    const T = 64;
-    const cx = P.x + Math.sin(phi) * T/2;
-    const cy = P.y + Math.cos(phi) * T/2;
-    const L = (RAMP.R * RAMP.theta / N) * 1.9;
-    segs.push(Bodies.rectangle(cx, cy, L, T,
+  // ---- Ramp: overlapping segments laid along the surface polyline (smooth, no steps) ----
+  const segs = [], T = 72;
+  for (let i = 0; i < RAMP.pts.length-1; i++) {
+    const a = RAMP.pts[i], b = RAMP.pts[i+1];
+    const mx = (a.x+b.x)/2, my = (a.y+b.y)/2, phi = (a.ang+b.ang)/2;
+    const cx = mx + Math.sin(phi)*T/2, cy = my + Math.cos(phi)*T/2;   // drop the segment into the ramp body, surface on top
+    const len = Math.hypot(b.x-a.x, b.y-a.y) * 1.7;                   // overlap neighbours so there's no gap to catch on
+    segs.push(Bodies.rectangle(cx, cy, len, T,
       { isStatic: true, label: 'ramp', angle: -phi, friction: 0.008, restitution: 0 }));
   }
   Composite.add(world, [ground, ...segs]);
@@ -557,8 +560,7 @@ function ground() {
   ctx.fillStyle='#eef5fb'; ctx.fillRect(-700, GROUND_Y, WORLD_W+1400, 6);
 }
 function drawRamp() {
-  const { x0, x1, topY } = RAMP, STEPS = 26;
-  const pts = []; for (let i=0;i<=STEPS;i++) pts.push(rampSurface(RAMP.theta*i/STEPS));
+  const { x0, x1, topY, pts } = RAMP;
   // solid wooden body under the curve
   ctx.fillStyle = '#7a5230'; ctx.beginPath(); ctx.moveTo(x0, GROUND_Y);
   for (const p of pts) ctx.lineTo(p.x, p.y);

@@ -63,7 +63,7 @@ knock them all down and clear the level. 6 levels, escalating towers.
 | `WORLD_W` | 4800 | level width (long run-out for the side-scroll) |
 | `GROUND_Y` | VH−70 | ground line |
 | `ANCHOR` | x=200 | sled start — long runway before the kicker |
-| `RAMP` | x0=900, R=600, θ=0.77 | **GIANT X-Games quarterpipe** — ~44° launch, **~15 ft lip** at x≈1318, a ~41-ft sweeping arc, `N=88` segments (smooth). Big R keeps it smooth despite the steep angle. **Keep θ ≤ ~0.8 (~45°)** — steeper launches mostly *up* (won't reach the downrange towers); reach ~2030–3160 ⇒ `LEVEL_X≈2650`. |
+| `RAMP` | x0=720, A=0.05, La=150, R=600, θ=0.74 | **X-Games drop-in**: a long **gentle straight approach** (`La`≈13 ft at `A`≈3°) so the sled stays *planted*, then an eased circular arc up to the **~42° / ~15 ft lip**. The surface is a sampled polyline (`RAMP.pts`); segments are laid along it (no abrupt curved base to bounce/flip the nose). **Keep θ ≤ ~0.8 (~45°)** — steeper launches go mostly *up*. Reach ~2060–3160 ⇒ `LEVEL_X≈2650`. |
 | `LEVEL_X[]` | all 2650 | `canX()`; the **centre of the reachable band** (giant ramp ⇒ reach ~2030–3160). Towers spread ±~360 so a near tower needs a soft pull and a far one a full send — each tower is its own aimed shot. |
 | `LAUNCH_EFF` | 0.72 | measured ramp speed loss; used for the trajectory preview |
 | `POWER` | 0.05 | dragDist → launch speed |
@@ -90,10 +90,12 @@ user wants that; it's the skill, don't "fix" it.** Heights ~38–57 ft (a tower 
 self-collapses on spawn — keep them moderate). Sled mass was lowered to 0.006 so it topples one
 tower rather than bulldozing the row. If you retune, **re-verify** (see Testing): stable at
 spawn (0 self-knock), one full shot only PARTIALLY clears multi-tower levels, and every level
-is winnable. The ramp is a **giant ~44° quarterpipe (~15 ft lip)** — dramatic air; a *big radius*
-keeps it smooth so part-power launches don't nose-up. **Don't exceed ~45°** (steeper = launches
-straight up, won't reach the towers). Ramp angle just splits launch speed up-vs-forward; tune
-range with `LEVEL_X`, not by going vertical.
+is winnable. The ramp is an **X-Games drop-in**: a long gentle straight approach (~3°) eases into
+the arc and the ~42°/~15 ft kick, so the sled stays **planted** (no abrupt base that bounces/
+flips the nose) and launches predictably. **Don't exceed ~45°** (steeper = launches straight up).
+Ramp angle just splits launch speed up-vs-forward; tune range with `LEVEL_X`, not by going vertical.
+⚠️ **A ramp "throttle"** (auto-accelerating the sled up the ramp) was tried and *removed* — it made
+launches erratic/non-monotonic and broke power-aiming. The gentle geometry alone keeps it planted.
 
 > ⚠️ **History (don't repeat these dead ends):** STATIC scaffolding → beers nested inside get
 > shielded and become unreachable. Linked/tippy dynamic towers → cascade-clear in one hit
