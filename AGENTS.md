@@ -63,8 +63,8 @@ knock them all down and clear the level. 6 levels, escalating towers.
 | `WORLD_W` | 4800 | level width (long run-out for the side-scroll) |
 | `GROUND_Y` | VH−70 | ground line |
 | `ANCHOR` | x=200 | sled start — long runway before the kicker |
-| `RAMP` | x0=980, R=560, θ=0.52 | **~30° kicker** — long & gentle (big R, low angle, lip only ~6.6 ft up at x≈1258), built from `N=38` segments. Deliberately mild so it doesn't pitch the sled's nose up at *partial* power (the spread-tower design needs soft pulls). Lower angle ⇒ shorter range ⇒ towers pulled in to `LEVEL_X≈2900`. |
-| `LEVEL_X[]` | all 2900 | `canX()`; the **centre of the reachable band** (gentler ramp ⇒ reach ~2170–3430). Towers spread ±~360 so a near tower needs a soft pull and a far one a full send — each tower is its own aimed shot. |
+| `RAMP` | x0=900, R=600, θ=0.77 | **GIANT X-Games quarterpipe** — ~44° launch, **~15 ft lip** at x≈1318, a ~41-ft sweeping arc, `N=88` segments (smooth). Big R keeps it smooth despite the steep angle. **Keep θ ≤ ~0.8 (~45°)** — steeper launches mostly *up* (won't reach the downrange towers); reach ~2030–3160 ⇒ `LEVEL_X≈2650`. |
+| `LEVEL_X[]` | all 2650 | `canX()`; the **centre of the reachable band** (giant ramp ⇒ reach ~2030–3160). Towers spread ±~360 so a near tower needs a soft pull and a far one a full send — each tower is its own aimed shot. |
 | `LAUNCH_EFF` | 0.72 | measured ramp speed loss; used for the trajectory preview |
 | `POWER` | 0.05 | dragDist → launch speed |
 | `MAX_DRAG` | 390 | max pull-back — full send ≈ **71 mph** (reaches the far tower; near ones use less) |
@@ -90,8 +90,10 @@ user wants that; it's the skill, don't "fix" it.** Heights ~38–57 ft (a tower 
 self-collapses on spawn — keep them moderate). Sled mass was lowered to 0.006 so it topples one
 tower rather than bulldozing the row. If you retune, **re-verify** (see Testing): stable at
 spawn (0 self-knock), one full shot only PARTIALLY clears multi-tower levels, and every level
-is winnable. The ramp is **~30°** (deliberately gentle so part-power launches don't nose-up &
-tumble); a flatter ramp shortens range, so the towers (`LEVEL_X`) were pulled in to ~2900 to match.
+is winnable. The ramp is a **giant ~44° quarterpipe (~15 ft lip)** — dramatic air; a *big radius*
+keeps it smooth so part-power launches don't nose-up. **Don't exceed ~45°** (steeper = launches
+straight up, won't reach the towers). Ramp angle just splits launch speed up-vs-forward; tune
+range with `LEVEL_X`, not by going vertical.
 
 > ⚠️ **History (don't repeat these dead ends):** STATIC scaffolding → beers nested inside get
 > shielded and become unreachable. Linked/tippy dynamic towers → cascade-clear in one hit
