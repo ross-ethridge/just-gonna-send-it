@@ -126,8 +126,8 @@ const treeXs = [80, 560, 1050, 1500, 1850, 2400];
 
 function makeSled() {
   const b = Bodies.rectangle(ANCHOR.x, ANCHOR.y, 112, 34, {
-    label: 'sled', density: 0.0045, friction: 0.004, frictionAir: 0.0006,
-    restitution: 0.15, chamfer: { radius: 10 }
+    label: 'sled', density: 0.010, friction: 0.004, frictionAir: 0.0006,
+    restitution: 0.04, chamfer: { radius: 10 }     // heavy & low-bounce: hugs the kicker instead of popping off at low throttle
   });
   Body.setStatic(b, true);
   Composite.add(world, b);
@@ -206,14 +206,14 @@ function buildLevel() {
   const cw = 38, ch = 70, G = GROUND_Y;
   const addBlock = (x, y, w, h, ang=0, opts={}) => {
     const stone = opts.mat === 'stone';
-    const b = Bodies.rectangle(x, y, w, h, { label:'block', density:0.0014, angle:ang,
-      isStatic: stone, friction:0.95, frictionStatic:6, restitution:0, chamfer:{ radius:2 } });
+    const b = Bodies.rectangle(x, y, w, h, { label:'block', density:0.0018, angle:ang,
+      isStatic: stone, friction:0.98, frictionStatic:9, restitution:0, chamfer:{ radius:2 } });
     b.w = w; b.h = h; b.mat = opts.mat || 'wood';
     blocks.push(b); Composite.add(world, b); return b;
   };
   const addCan = (x, baseY) => {
-    const c = Bodies.rectangle(x, baseY - ch/2, cw, ch, { label:'can', density:0.0010,
-      friction:0.9, frictionStatic:6, restitution:0, chamfer:{ radius:4 } });   // a touch light so they topple/scatter readily
+    const c = Bodies.rectangle(x, baseY - ch/2, cw, ch, { label:'can', density:0.0012,
+      friction:0.92, frictionStatic:8, restitution:0, chamfer:{ radius:4 } });   // sit firmly, but a heavy sled still scatters them
     c.knocked = false; c.hue = 40 + Math.random()*20;
     c.ox = x; c.oy = baseY - ch/2;                    // remember start, to detect being shoved
     cans.push(c); Composite.add(world, c); return c;
@@ -415,13 +415,20 @@ function stepCamera() {
   cam.y += (ty - cam.y) * 0.09;
 }
 
-// ---- Respawn after the sled settles or leaves the world ----
+// True only when EVERYTHING has stopped moving — the sled AND every can/board.
+// (So we don't reset or celebrate while cans are still tumbling.)
+function sceneSettled() {
+  if (Vector.magnitude(sled.velocity) >= 0.45 || Math.abs(sled.angularVelocity) >= 0.04) return false;
+  for (const c of cans)   if (Vector.magnitude(c.velocity) >= 0.4 || Math.abs(c.angularVelocity) >= 0.05) return false;
+  for (const b of blocks) if (!b.isStatic && (Vector.magnitude(b.velocity) >= 0.4 || Math.abs(b.angularVelocity) >= 0.05)) return false;
+  return true;
+}
+// ---- Respawn after the whole scene settles or the sled leaves the world ----
 function maybeRespawn(dt) {
   if (state !== 'fly') return;
   const off = sled.position.x > WORLD_W+300 || sled.position.x < -300 || sled.position.y > VH+400;
-  const slow = Vector.magnitude(sled.velocity) < 0.5 && Math.abs(sled.angularVelocity) < 0.04;
-  restT = slow ? restT + dt : 0;
-  if (off || restT > 900) { engineStop(); Composite.remove(world, sled); sled = makeSled(); state = 'aim'; }
+  restT = sceneSettled() ? restT + dt : 0;       // only count rest once nothing is still wobbling
+  if (off || restT > 700) { engineStop(); Composite.remove(world, sled); sled = makeSled(); state = 'aim'; }
 }
 
 // ================= RENDER =================
@@ -776,8 +783,8 @@ function physicsStep() {
   // then Larry hops off. (Hold off respawn so he doesn't get teleported back to the start.)
   if (winPending && !celebrating) {
     winT += STEP;
-    const settled = Vector.magnitude(sled.velocity) < 1.2 && sled.position.y > GROUND_Y - 80;
-    if (winT > 700 && (settled || winT > 1800)) startCelebration();
+    // wait for the dust to settle — sled down AND all cans done wobbling — before Larry hops off
+    if (winT > 700 && (sceneSettled() || winT > 4500)) startCelebration();
   }
   if (!celebrating && !winPending) {
     if (Vector.magnitude(sled.velocity) > 5 && sled.position.y > GROUND_Y - 70)
