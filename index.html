@@ -165,10 +165,17 @@ const snow = Array.from({ length: 90 }, () => ({
 const treeXs = [80, 560, 1050, 1500, 1850, 2400];
 
 function makeSled() {
-  const b = Bodies.rectangle(ANCHOR.x, ANCHOR.y, 112, 34, {
+  // Collision body shaped like a sled: flat bottom, but the FRONT is LIFTED & ROUNDED (a ski tip)
+  // so the leading edge rolls onto the ramp instead of impacting the transition (no nose-bump/nollie).
+  const verts = [
+    {x:-56,y:-17},{x:36,y:-18},{x:52,y:-12},{x:60,y:-2},   // back-top → top-front → curved nose tip (lifted, forward)
+    {x:54,y:7},{x:38,y:14},{x:24,y:17},                    // underside of the nose sweeping down to the flat
+    {x:-56,y:17}                                            // flat bottom back to the tail
+  ];
+  const b = Bodies.fromVertices(ANCHOR.x, ANCHOR.y, [verts], {
     label: 'sled', density: 0.006, friction: 0.004, frictionAir: 0.0006,
-    restitution: 0, chamfer: { radius: 10 }     // mass tuned to topple ONE tower without bulldozing the whole row
-  });
+    restitution: 0, chamfer: { radius: 6 }       // round the corners a touch more
+  }, true);
   Body.setStatic(b, true);
   Composite.add(world, b);
   return b;
