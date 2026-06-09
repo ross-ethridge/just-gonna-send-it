@@ -63,8 +63,8 @@ knock them all down and clear the level. 6 levels, escalating towers.
 | `WORLD_W` | 4800 | level width (long run-out for the side-scroll) |
 | `GROUND_Y` | VH−70 | ground line |
 | `ANCHOR` | x=200 | sled start — long runway before the kicker |
-| `RAMP` | x0=1020, R=400, θ=0.73 | kicker arc (~42°, lip ~9 ft up at x≈1287); **big R = long, gentle curve → smooth glide up** (built from `N=30` overlapping segments). Bigger R also lengthens range, so it's paired with the `CANS_X` below. |
-| `LEVEL_X[]` | all 3250 | `canX()`; the **centre of the reachable band**. Towers are spread ±~360 around it so a near tower needs a soft pull and a far one a full send — each tower is its own aimed shot. |
+| `RAMP` | x0=980, R=560, θ=0.52 | **~30° kicker** — long & gentle (big R, low angle, lip only ~6.6 ft up at x≈1258), built from `N=38` segments. Deliberately mild so it doesn't pitch the sled's nose up at *partial* power (the spread-tower design needs soft pulls). Lower angle ⇒ shorter range ⇒ towers pulled in to `LEVEL_X≈2900`. |
+| `LEVEL_X[]` | all 2900 | `canX()`; the **centre of the reachable band** (gentler ramp ⇒ reach ~2170–3430). Towers spread ±~360 so a near tower needs a soft pull and a far one a full send — each tower is its own aimed shot. |
 | `LAUNCH_EFF` | 0.72 | measured ramp speed loss; used for the trajectory preview |
 | `POWER` | 0.05 | dragDist → launch speed |
 | `MAX_DRAG` | 390 | max pull-back — full send ≈ **71 mph** (reaches the far tower; near ones use less) |
@@ -90,7 +90,8 @@ user wants that; it's the skill, don't "fix" it.** Heights ~38–57 ft (a tower 
 self-collapses on spawn — keep them moderate). Sled mass was lowered to 0.006 so it topples one
 tower rather than bulldozing the row. If you retune, **re-verify** (see Testing): stable at
 spawn (0 self-knock), one full shot only PARTIALLY clears multi-tower levels, and every level
-is winnable. ⚠️ The ramp is ~42°; **don't flatten it** — 42° is near the 45° max-range angle.
+is winnable. The ramp is **~30°** (deliberately gentle so part-power launches don't nose-up &
+tumble); a flatter ramp shortens range, so the towers (`LEVEL_X`) were pulled in to ~2900 to match.
 
 > ⚠️ **History (don't repeat these dead ends):** STATIC scaffolding → beers nested inside get
 > shielded and become unreachable. Linked/tippy dynamic towers → cascade-clear in one hit

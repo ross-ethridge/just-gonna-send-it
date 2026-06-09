@@ -98,13 +98,13 @@ const ANCHOR = { x: 200, y: GROUND_Y - 18 };          // sled start (long runway
 // Kicker launcher = a steep concave arc that flings the sled into a big spinning
 // backflip jump. (A truly rideable loop traps the sled in 2D physics, so the crazy
 // flips come from a steep kicker + mid-air rotation control instead.)
-const RAMP = { x0: 1020, R: 400, theta: 0.73 };         // ~42° kicker — long, gentle (big R) arc so the sled glides up smoothly; big air for flips
+const RAMP = { x0: 980, R: 560, theta: 0.52 };          // ~30° kicker — LONG & GENTLE (big R, lower angle, starts earlier) so it doesn't pitch the nose up at part power
 RAMP.x1   = RAMP.x0 + RAMP.R * Math.sin(RAMP.theta);
 RAMP.topY = GROUND_Y - RAMP.R * (1 - Math.cos(RAMP.theta));
 const LIP = { x: RAMP.x1, y: RAMP.topY };               // takeoff point
 // Ramp→castle distance, PER LEVEL (the ~71 mph arc lands ~3220; towers sit in its steep
 // descent zone so the sled drops INTO them rather than cresting over). Tune each level here.
-const LEVEL_X = [3250, 3250, 3250, 3250, 3250, 3250];   // centre of the reachable band; towers spread ±~360 around it so each needs its own power
+const LEVEL_X = [2900, 2900, 2900, 2900, 2900, 2900];   // centre of the (gentler-ramp) reachable band; towers spread ±~360 so each needs its own power
 const canX = () => LEVEL_X[level];
 const LAUNCH_EFF = 0.72;                                // measured: lip speed ≈ 0.72 × launch (ramp loss)
 
@@ -233,7 +233,7 @@ function buildLevel() {
     { isStatic: true, label: 'ground', friction: 0.008 });
   // ---- Kicker arc launcher ----
   const segs = [];
-  const N = 30;
+  const N = 38;
   for (let i = 0; i < N; i++) {
     const phi = RAMP.theta * (i + 0.5) / N;
     const P = rampSurface(phi);
