@@ -570,6 +570,46 @@ function tree(x, sc){ ctx.save(); ctx.translate(x, GROUND_Y); ctx.scale(sc,sc);
   for(let i=0;i<3;i++){ const w=46-i*10,y=-18-i*26; ctx.beginPath();
     ctx.moveTo(0,y-34); ctx.lineTo(-w*0.5,y-12); ctx.lineTo(w*0.2,y-12); ctx.closePath(); ctx.fill(); }
   ctx.restore(); }
+// ---- Snowy scrap-yard junk he races past on the approach (cosmetic, world-space) ----
+function shadow(w){ ctx.fillStyle='rgba(28,21,48,.12)'; ctx.beginPath(); ctx.ellipse(0,-1,w,6,0,0,Math.PI*2); ctx.fill(); }
+function drawCar(x, sc, col){ ctx.save(); ctx.translate(x, GROUND_Y); ctx.scale(sc,sc); ctx.lineJoin='round'; ctx.lineCap='round';
+  shadow(52); ctx.strokeStyle=INK; ctx.lineWidth=3;
+  ctx.fillStyle=col; ctx.beginPath(); rr(-50,-28,100,24,8); ctx.fill(); ctx.stroke();        // body
+  ctx.beginPath(); ctx.moveTo(-26,-28); ctx.lineTo(-16,-48); ctx.lineTo(22,-48); ctx.lineTo(34,-28); ctx.closePath(); ctx.fill(); ctx.stroke();  // cabin
+  ctx.fillStyle='#9fb8c8'; ctx.beginPath(); ctx.moveTo(-20,-30); ctx.lineTo(-12,-45); ctx.lineTo(3,-45); ctx.lineTo(3,-30); ctx.closePath(); ctx.fill();  // window
+  ctx.fillStyle='rgba(120,60,30,.5)'; ctx.beginPath(); ctx.arc(-32,-14,6,0,Math.PI*2); ctx.arc(18,-18,5,0,Math.PI*2); ctx.fill();  // rust
+  ctx.fillStyle=INK; ctx.beginPath(); ctx.arc(-30,-3,11,0,Math.PI*2); ctx.fill();             // back wheel
+  ctx.beginPath(); ctx.ellipse(30,-1,11,7,0,0,Math.PI*2); ctx.fill();                          // front flat tyre
+  ctx.fillStyle='#888'; ctx.beginPath(); ctx.arc(-30,-3,4,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.9)'; ctx.beginPath(); rr(-26,-50,50,4,2); ctx.fill();       // snow cap
+  ctx.restore(); }
+function drawMoto(x, sc){ ctx.save(); ctx.translate(x, GROUND_Y); ctx.scale(sc,sc); ctx.lineJoin='round'; ctx.lineCap='round';
+  shadow(30); ctx.strokeStyle=INK; ctx.lineWidth=3;
+  ctx.fillStyle='#2c2740'; ctx.beginPath(); ctx.arc(-20,-14,14,0,Math.PI*2); ctx.arc(20,-14,14,0,Math.PI*2); ctx.fill();   // wheels
+  ctx.fillStyle='#888'; ctx.beginPath(); ctx.arc(-20,-14,5,0,Math.PI*2); ctx.arc(20,-14,5,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle=INK; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(-20,-14); ctx.lineTo(-2,-26); ctx.lineTo(20,-14); ctx.moveTo(16,-24); ctx.lineTo(27,-32); ctx.stroke();   // frame + bars
+  ctx.fillStyle='#7a3b2e'; ctx.beginPath(); rr(-11,-31,26,11,5); ctx.fill();                  // rusty tank
+  ctx.fillStyle='rgba(255,255,255,.85)'; ctx.beginPath(); rr(-11,-33,26,3,2); ctx.fill();
+  ctx.restore(); }
+function drawTractor(x, sc){ ctx.save(); ctx.translate(x, GROUND_Y); ctx.scale(sc,sc); ctx.lineJoin='round'; ctx.lineCap='round';
+  shadow(46); ctx.strokeStyle=INK; ctx.lineWidth=3;
+  ctx.fillStyle=INK; ctx.beginPath(); ctx.arc(24,-22,22,0,Math.PI*2); ctx.fill();             // big rear wheel
+  ctx.fillStyle='#9a9a9a'; ctx.beginPath(); ctx.arc(24,-22,9,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=INK; ctx.beginPath(); ctx.arc(-32,-11,12,0,Math.PI*2); ctx.fill();            // small front wheel
+  ctx.fillStyle='#9a9a9a'; ctx.beginPath(); ctx.arc(-32,-11,5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#3f7d3a'; ctx.beginPath(); rr(-36,-34,46,18,5); ctx.fill(); ctx.stroke();    // hood
+  ctx.beginPath(); rr(-2,-48,24,32,5); ctx.fill(); ctx.stroke();                              // cab/seat back
+  ctx.fillStyle=INK; ctx.fillRect(-20,-56,6,22);                                              // exhaust stack
+  ctx.fillStyle='#5a3a22'; ctx.beginPath(); rr(0,-46,16,8,3); ctx.fill();                     // seat
+  ctx.fillStyle='rgba(255,255,255,.85)'; ctx.fillRect(-36,-36,46,3); ctx.fillRect(-2,-50,24,3);
+  ctx.fillStyle='rgba(120,60,30,.4)'; ctx.beginPath(); ctx.arc(-22,-24,6,0,Math.PI*2); ctx.fill();
+  ctx.restore(); }
+// junk only on the APPROACH (x < ramp foot) so it never blocks the targets/towers downrange
+const JUNK = [
+  {x:-300,t:0,sc:1.0,c:'#b0563f'}, {x:-140,t:2,sc:0.95}, {x:40,t:1,sc:1.0},
+  {x:250,t:0,sc:1.08,c:'#4a7a86'}, {x:430,t:1,sc:0.9}, {x:600,t:2,sc:1.0},
+];
+function drawJunk(){ for (const j of JUNK) { if (j.t===0) drawCar(j.x,j.sc,j.c); else if (j.t===1) drawMoto(j.x,j.sc); else drawTractor(j.x,j.sc); } }
 
 function ground() {
   ctx.fillStyle='#fdfeff'; ctx.fillRect(-700, GROUND_Y, WORLD_W+1400, VH-GROUND_Y+300);
@@ -628,7 +668,7 @@ function drawSnowmobile(body) {
     ctx.beginPath(); rr(-52,-22,30,10,5); fillOutline('#2c2740', 2.5);
     // handlebar
     ctx.beginPath(); ctx.moveTo(15,-14); ctx.lineTo(7,-30); ctx.strokeStyle=INK; ctx.lineWidth=4; ctx.lineCap='round'; ctx.stroke();
-    if (!celebrating) drawRider();          // during the celebration Larry has hopped off
+    if (!celebrating && !gameOver) drawRider();   // hopped off (celebration) / sprawled as the wreck (game over)
   });
 }
 // The rider = Larry Enticer (denim jacket, mullet, 'stache, orange shades, beer up)
@@ -641,18 +681,30 @@ function drawRider() {
   ctx.strokeStyle='#3f5d86'; ctx.lineWidth=1.6;                                // collar + placket
   ctx.beginPath(); ctx.moveTo(2,-11); ctx.lineTo(9,-1); ctx.lineTo(15,-12); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(9,-1); ctx.lineTo(11,11); ctx.stroke();
-  // ---- raised arm holding a beer high (drawn ON TOP so it connects) ----
   ctx.lineCap='round';
-  ctx.strokeStyle=INK; ctx.lineWidth=12; ctx.beginPath(); ctx.moveTo(3,-9); ctx.lineTo(-9,-35); ctx.stroke();
-  ctx.strokeStyle='#7ba6da'; ctx.lineWidth=9; ctx.beginPath(); ctx.moveTo(3,-9); ctx.lineTo(-9,-35); ctx.stroke();
-  ctx.beginPath(); ctx.arc(-10,-36,4.5,0,Math.PI*2); fillOutline('#ffd0a0',2.2);   // hand
-  ctx.save(); ctx.translate(-11,-47);                                              // beer can
-  ctx.beginPath(); rr(-6,-10,12,21,3); fillOutline('#ffd23a',2.5);
-  ctx.fillStyle='#fff'; ctx.fillRect(-6,-3,12,8); ctx.fillStyle='#e23b54'; ctx.fillRect(-6,-1,12,3);
-  ctx.restore();
-  // ---- arm on the handlebar ----
-  ctx.beginPath(); ctx.moveTo(14,-3); ctx.lineTo(33,9); ctx.strokeStyle='#7ba6da'; ctx.lineWidth=8; ctx.lineCap='round'; ctx.stroke();
-  ctx.beginPath(); ctx.arc(34,10,4.5,0,Math.PI*2); fillOutline('#ffd0a0',2.5);
+  if (state === 'fly') {
+    // ---- LAUNCH: on release he chucks the beer behind his head & grabs the bars, jetting off ----
+    ctx.save(); ctx.translate(-34,-42); ctx.rotate(-0.8);                            // tumbling beer, behind/above
+    ctx.beginPath(); rr(-6,-10,12,21,3); fillOutline('#ffd23a',2.4);
+    ctx.fillStyle='#fff'; ctx.fillRect(-6,-3,12,8); ctx.fillStyle='#e23b54'; ctx.fillRect(-6,-1,12,3);
+    ctx.restore();
+    ctx.strokeStyle='rgba(255,255,255,.6)'; ctx.lineWidth=2.5;                       // toss motion lines
+    ctx.beginPath(); ctx.moveTo(-22,-40); ctx.lineTo(-36,-47); ctx.moveTo(-20,-33); ctx.lineTo(-34,-38); ctx.stroke();
+    ctx.strokeStyle=INK; ctx.lineWidth=12; ctx.beginPath(); ctx.moveTo(8,-6); ctx.lineTo(33,9); ctx.moveTo(2,-2); ctx.lineTo(33,11); ctx.stroke();
+    ctx.strokeStyle='#7ba6da'; ctx.lineWidth=9; ctx.beginPath(); ctx.moveTo(8,-6); ctx.lineTo(33,9); ctx.moveTo(2,-2); ctx.lineTo(33,11); ctx.stroke();
+    ctx.beginPath(); ctx.arc(34,10,5,0,Math.PI*2); fillOutline('#ffd0a0',2.5);       // both hands on the bar
+  } else {
+    // ---- aiming / climbing: beer raised high in one hand, other on the bar ----
+    ctx.strokeStyle=INK; ctx.lineWidth=12; ctx.beginPath(); ctx.moveTo(3,-9); ctx.lineTo(-9,-35); ctx.stroke();
+    ctx.strokeStyle='#7ba6da'; ctx.lineWidth=9; ctx.beginPath(); ctx.moveTo(3,-9); ctx.lineTo(-9,-35); ctx.stroke();
+    ctx.beginPath(); ctx.arc(-10,-36,4.5,0,Math.PI*2); fillOutline('#ffd0a0',2.2);
+    ctx.save(); ctx.translate(-11,-47);
+    ctx.beginPath(); rr(-6,-10,12,21,3); fillOutline('#ffd23a',2.5);
+    ctx.fillStyle='#fff'; ctx.fillRect(-6,-3,12,8); ctx.fillStyle='#e23b54'; ctx.fillRect(-6,-1,12,3);
+    ctx.restore();
+    ctx.beginPath(); ctx.moveTo(14,-3); ctx.lineTo(33,9); ctx.strokeStyle='#7ba6da'; ctx.lineWidth=8; ctx.lineCap='round'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(34,10,4.5,0,Math.PI*2); fillOutline('#ffd0a0',2.5);
+  }
   drawLarryHead();
   ctx.restore();
 }
@@ -987,6 +1039,7 @@ function loop(now) {
   // world-space (camera) layer
   ctx.save(); ctx.translate(-cam.x, -cam.y);
   ground();
+  drawJunk();                                          // snowy scrap-yard along the approach
   for (const x of treeXs) tree(x, 0.9 + (x%7)/14);
   drawRamp();
   for (const b of blocks) drawBlock(b);
