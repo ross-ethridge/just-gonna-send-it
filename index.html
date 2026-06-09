@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Just Gonna Send It</title>
 <style>
   html, body { margin: 0; height: 100%; background: #0b1a2b; overflow: hidden;
@@ -10,17 +10,17 @@
   #wrap { position: relative; width: 100vw; height: 100vh; }
   canvas { display: block; width: 100%; height: 100%; cursor: grab; }
   canvas.dragging { cursor: grabbing; }
-  #hud { position: absolute; top: 14px; left: 18px; color: #fff;
+  #hud { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 12px); left: calc(env(safe-area-inset-left, 0px) + 16px); color: #fff;
     text-shadow: 0 2px 5px rgba(0,0,0,.55); pointer-events: none; }
   #hud h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: 1px; font-weight: 800; }
   #hud .stat { font-size: 15px; opacity: .95; }
-  #help { position: absolute; bottom: 14px; left: 18px; color: #eaf4ff;
+  #help { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); left: calc(env(safe-area-inset-left, 0px) + 16px); color: #eaf4ff;
     font-size: 13px; opacity: .85; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
-  #restart, #restartgame { position: absolute; top: 14px; color: #fff;
+  #restart, #restartgame { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 12px); color: #fff;
     background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.35);
     border-radius: 8px; padding: 8px 14px; font-size: 14px; cursor: pointer; }
-  #restart { right: 18px; }
-  #restartgame { right: 150px; }
+  #restart { right: calc(env(safe-area-inset-right, 0px) + 16px); }
+  #restartgame { right: calc(env(safe-area-inset-right, 0px) + 148px); }
   #restart:hover, #restartgame:hover { background: rgba(255,255,255,.26); }
   #win { position: absolute; inset: 0; display: none; align-items: center;
     justify-content: center; flex-direction: column; color: #fff;
@@ -32,12 +32,12 @@
   #win.over { background: rgba(40,8,8,.62); }                 /* GAME OVER: angry red wash */
   #win.over .big { color: #ff5a5a; text-shadow: 0 4px 18px rgba(0,0,0,.6); }
   /* On-screen flip buttons (touch only) — hold to rotate the sled mid-air, like ◄ ► / A,D */
-  .flipbtn { position: absolute; bottom: 22px; width: 78px; height: 78px; border-radius: 50%;
+  .flipbtn { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); width: 76px; height: 76px; border-radius: 50%;
     display: none; align-items: center; justify-content: center; font-size: 34px; color: #fff;
     background: rgba(255,255,255,.16); border: 2px solid rgba(255,255,255,.45);
     text-shadow: 0 2px 4px rgba(0,0,0,.5); touch-action: none; -webkit-user-select: none; user-select: none; }
   .flipbtn:active { background: rgba(255,255,255,.36); }
-  #flipL { left: 20px; } #flipR { right: 20px; }
+  #flipL { left: calc(env(safe-area-inset-left, 0px) + 18px); } #flipR { right: calc(env(safe-area-inset-right, 0px) + 18px); }
   @media (hover: none) and (pointer: coarse) {       /* phones/tablets */
     .flipbtn { display: flex; }
     #help { display: none; }                          /* keyboard hints don't apply; buttons are self-evident */
@@ -64,7 +64,7 @@
     <div class="stat">Cans down: <span id="score">0</span> / <span id="total">0</span></div>
     <div class="stat">Launches: <span id="shots">0</span> / 5</div>
   </div>
-  <div id="help">Drag back &amp; release to send it off the kicker • ◄ ► / A,D to flip &amp; level out mid-air • R resets • M mutes <span style="opacity:.45">• build 2026-06-09b</span></div>
+  <div id="help">Drag back &amp; release to send it off the kicker • ◄ ► / A,D to flip &amp; level out mid-air • R resets • M mutes <span style="opacity:.45">• build 2026-06-09c</span></div>
   <button id="restartgame">⟲ Reset game</button>
   <button id="restart">↻ Retry level</button>
   <div id="flipL" class="flipbtn">◄</div>
@@ -90,7 +90,7 @@ const winSub = document.getElementById('winsub');
 const winBig = document.querySelector('#win .big');
 
 // Viewport (game units) and the wider scrolling world
-const VW = 1280, VH = 720;        // visible camera size
+let VW = 1280; const VH = 720;    // VH fixed (consistent zoom); VW follows the device aspect so we fill edge-to-edge
 const WORLD_W = 4800;             // total level width (long run-out for the side-scroll)
 const GROUND_Y = VH - 70;
 
@@ -128,7 +128,9 @@ const POWER = 0.05;            // drag -> launch speed
 const MAX_DRAG = 390;          // full send ~71 mph — reaches the FAR towers; near ones need a softer pull (that's the aim)
 
 
-// Uniform-scale + letterbox so geometry never distorts on resize
+// Fit HEIGHT exactly and let the visible WIDTH follow the device aspect → fills the screen
+// edge-to-edge (no letterbox bars), same uniform zoom on every device; wider phones just see
+// more of the world. The side-scroll camera handles the extra width.
 const view = { scale: 1, offX: 0, offY: 0, dpr: 1 };
 function resize() {
   const dpr = window.devicePixelRatio || 1;
@@ -136,9 +138,9 @@ function resize() {
   canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
   canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
   view.dpr = dpr;
-  view.scale = Math.min(cssW / VW, cssH / VH);       // uniform -> preserves aspect ratio
-  view.offX = (cssW - VW * view.scale) / 2;          // centre with letterbox bars
-  view.offY = (cssH - VH * view.scale) / 2;
+  view.scale = cssH / VH;                             // height fills exactly (uniform, no distortion)
+  VW = Math.max(960, Math.round(cssW / view.scale));  // virtual width = however wide the device is
+  view.offX = 0; view.offY = 0;                       // no bars — edge to edge
 }
 window.addEventListener('resize', resize);
 
