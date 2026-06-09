@@ -104,7 +104,7 @@ RAMP.topY = GROUND_Y - RAMP.R * (1 - Math.cos(RAMP.theta));
 const LIP = { x: RAMP.x1, y: RAMP.topY };               // takeoff point
 // Ramp→castle distance, PER LEVEL (the ~71 mph arc lands ~3220; towers sit in its steep
 // descent zone so the sled drops INTO them rather than cresting over). Tune each level here.
-const LEVEL_X = [3120, 3150, 3200, 3250, 3150, 3180];
+const LEVEL_X = [3050, 3050, 3050, 3050, 3050, 3050];   // the (single, static) tower's distance — sits in the launch arc's reach
 const canX = () => LEVEL_X[level];
 const LAUNCH_EFF = 0.72;                                // measured: lip speed ≈ 0.72 × launch (ramp loss)
 
@@ -160,8 +160,8 @@ const treeXs = [80, 560, 1050, 1500, 1850, 2400];
 
 function makeSled() {
   const b = Bodies.rectangle(ANCHOR.x, ANCHOR.y, 112, 34, {
-    label: 'sled', density: 0.010, friction: 0.004, frictionAir: 0.0006,
-    restitution: 0.04, chamfer: { radius: 10 }     // heavy & low-bounce: hugs the kicker instead of popping off at low throttle
+    label: 'sled', density: 0.006, friction: 0.004, frictionAir: 0.0006,
+    restitution: 0.04, chamfer: { radius: 10 }     // moderate mass: topples the tower it hits without bulldozing the whole level
   });
   Body.setStatic(b, true);
   Composite.add(world, b);
@@ -171,9 +171,9 @@ function makeSled() {
 // ---- Level structures. B=addBlock(x,y,w,h)  C=addCan(x,baseY)  G=ground  ch=can h  X=centre ----
 // ---- Angry-Birds kit: wooden STICK posts hold up BOARD beams; beer cans = elevated targets ----
 const PSPAN = 46;                                  // half-gap between a tier's two posts
-function post(B, cx, baseY, h) { B(cx, baseY - h/2, 19, h); return baseY - h; }  // wooden support stick
+function post(B, cx, baseY, h, o) { B(cx, baseY - h/2, 19, h, 0, o); return baseY - h; }  // wooden support stick
 function stonePost(B, cx, baseY, h) { B(cx, baseY - h/2, 22, h, 0, {mat:'stone'}); return baseY - h; } // immovable stone pillar
-function beam(B, cx, topY, w) { B(cx, topY - 7, w, 14); return topY - 14; }       // board, returns its top
+function beam(B, cx, topY, w, o) { B(cx, topY - 7, w, 14, 0, o); return topY - 14; }       // board, returns its top
 // A tower: tiers of [two stick posts + a board], with beer-can targets perched on each platform.
 // Nothing sits on the ground (ground cans can't be toppled). topCans=false leaves the roof bare for a bridge.
 const STONE_H = 56;       // short immovable stone footing (so a ground-scrape can't auto-win)
@@ -221,22 +221,44 @@ function wideTower(B, C, G, ch, X, tiers, topCans=true) {
   }
   return y;
 }
-// Spacious BROAD-keep castles that domino fantastically when you plow through them.
-// Progression: single → twin → triple, all wide fortress towers, linked by bridges so a hit
-// on the near keep cascades through the whole structure.
+// ---- Angry-Birds-style stacked-plank towers (DYNAMIC: they topple & scatter when hit) ----
+// A stack of open "cells" (two planks + a board): beers perch on the roof and a couple inside.
+// Knock the tower over and the beers tumble. Several spread towers per level, so one shot
+// topples ~one tower and you chip the rest down over a few shots.
+function tower(B, C, X, G, floors, hw) {
+  let y = G;
+  stonePost(B, X-hw, y, STONE_H); stonePost(B, X+hw, y, STONE_H);   // immovable footing (can't win by plowing the base)
+  y = beam(B, X, y - STONE_H, hw*2 + 28);
+  for (let f = 0; f < floors; f++) {
+    if (f % 2 === 0) C(X, y);                   // a beer boxed inside every other floor
+    post(B, X-hw, y, PH); post(B, X+hw, y, PH);
+    y = beam(B, X, y - PH, hw*2 + 28);
+  }
+  C(X, y);                                       // a beer on the roof
+  return y;
+}
+// a board platform bridging two towers' tops, with a beer or two riding it
+function deck(B, C, x1, x2, y, n=2) {
+  const cx=(x1+x2)/2, w=Math.abs(x2-x1), top=beam(B,cx,y,w+80);
+  for (let i=0;i<n;i++) C(x1 + (x2-x1)*(i+1)/(n+1), top);
+  return top;
+}
+// Spread Angry-Birds skylines — towers of varied height, some joined by plank decks. Dynamic:
+// a hit topples the tower it strikes and scatters its beers; you work across the level over
+// several shots (more / wider structures = harder).
 const LEVELS = [
-  // 1 — broad keep with a battlement crown
-  (B,C,G,ch,X) => { const y = wideTower(B,C,G,ch,X, 4, false); crown(B,C,X,y); },
-  // 2 — taller broad keep, battlements
-  (B,C,G,ch,X) => { const y = wideTower(B,C,G,ch,X, 5, false); crown(B,C,X,y); },
-  // 3 — twin keeps joined by a bridge
-  (B,C,G,ch,X) => { const y=wideTower(B,C,G,ch,X-150,4,false); wideTower(B,C,G,ch,X+150,4,false); span(B,C,X-150,X+150,y); },
-  // 4 — taller twin keeps + bridge
-  (B,C,G,ch,X) => { const y=wideTower(B,C,G,ch,X-150,5,false); wideTower(B,C,G,ch,X+150,5,false); span(B,C,X-150,X+150,y); },
-  // 5 — twin TALL keeps + bridge (both fully reachable)
-  (B,C,G,ch,X) => { const y=wideTower(B,C,G,ch,X-160,6,false); wideTower(B,C,G,ch,X+160,6,false); span(B,C,X-160,X+160,y); },
-  // 6 — grand fortress: three keeps, two bridges
-  (B,C,G,ch,X) => { const a=X-190,b=X,c=X+190; const y=wideTower(B,C,G,ch,a,4,false); wideTower(B,C,G,ch,b,4,false); wideTower(B,C,G,ch,c,4,false); span(B,C,a,b,y); span(B,C,b,c,y); },
+  // 1 — one little tower (warm-up)
+  (B,C,G,ch,X) => tower(B,C,X,G,3,40),
+  // 2 — two towers with a gap
+  (B,C,G,ch,X) => { tower(B,C,X-140,G,3,38); tower(B,C,X+140,G,4,38); },
+  // 3 — two towers joined by a plank deck (beers up high)
+  (B,C,G,ch,X) => { const y=tower(B,C,X-125,G,3,38); tower(B,C,X+125,G,3,38); deck(B,C,X-125,X+125,y); },
+  // 4 — three towers, tall one in the middle
+  (B,C,G,ch,X) => { tower(B,C,X-205,G,3,38); tower(B,C,X,G,5,40); tower(B,C,X+205,G,3,38); },
+  // 5 — a fortress: flanking towers decked together, a stubby one out front
+  (B,C,G,ch,X) => { const a=X-185,b=X+185; const y=tower(B,C,a,G,4,40); tower(B,C,b,G,4,40); deck(B,C,a,b,y,3); tower(B,C,X,G,2,34); },
+  // 6 — big fortress: three towers, two decks
+  (B,C,G,ch,X) => { const a=X-225,b=X,c=X+225; const y=tower(B,C,a,G,4,40); tower(B,C,b,G,5,40); tower(B,C,c,G,4,40); deck(B,C,a,b,y,2); deck(B,C,b,c,y,2); },
 ];
 
 function buildLevel() {
@@ -269,9 +291,9 @@ function buildLevel() {
   // ---- Destructible structure: wooden supports with cans perched to cascade ----
   const cw = 38, ch = 70, G = GROUND_Y;
   const addBlock = (x, y, w, h, ang=0, opts={}) => {
-    const stone = opts.mat === 'stone';
+    const fixed = opts.mat === 'stone' || opts.fixed;     // scaffolding is STATIC: it never topples (you chip cans off it over several sends), but the sled still collides with it
     const b = Bodies.rectangle(x, y, w, h, { label:'block', density:0.0018, angle:ang,
-      isStatic: stone, friction:0.98, frictionStatic:9, restitution:0, chamfer:{ radius:2 } });
+      isStatic: fixed, friction:0.98, frictionStatic:9, restitution:0, chamfer:{ radius:2 } });
     b.w = w; b.h = h; b.mat = opts.mat || 'wood';
     blocks.push(b); Composite.add(world, b); return b;
   };
@@ -827,24 +849,44 @@ function drawDabHead() {
   // orange shades peeking on the lower face (so you know it's Larry)
   ctx.beginPath(); rr(2,2,13,7,3); fillOutline('#ff9a3c',2.2);
 }
+const PAL = ['#ff5d8f','#ffd23f','#3ec6d6','#9b6bff','#ff8a3d','#4ecb71','#ff6f61']; // Seuss candy palette
+// A bowed, banana-curved board outline (not flat scaffolding) — bends along its long axis.
+function boardPath(w, h, bow) {
+  const hw = w/2, hh = h/2;
+  ctx.beginPath();
+  if (w >= h) {                          // horizontal board → bows vertically
+    ctx.moveTo(-hw, -hh);
+    ctx.quadraticCurveTo(0, -hh - bow, hw, -hh);
+    ctx.lineTo(hw, hh);
+    ctx.quadraticCurveTo(0, hh - bow, -hw, hh);
+  } else {                               // vertical post → bows sideways
+    ctx.moveTo(-hw, -hh);
+    ctx.quadraticCurveTo(-hw - bow, 0, -hw, hh);
+    ctx.lineTo(hw, hh);
+    ctx.quadraticCurveTo(hw - bow, 0, hw, -hh);
+  }
+  ctx.closePath();
+}
 function drawBlock(b) {
   local(b, () => {
     const w = b.w, h = b.h;
-    if (b.mat === 'stone') {                                   // immovable stone pillar
-      ctx.beginPath(); rr(-w/2,-h/2,w,h,4); fillOutline('#8b8f96', 3);
-      ctx.strokeStyle = 'rgba(28,21,48,.30)'; ctx.lineWidth = 1.5;
-      for (let y=-h/2+12; y<h/2-4; y+=16){                     // staggered block courses
-        ctx.beginPath(); ctx.moveTo(-w/2+3,y); ctx.lineTo(w/2-3,y); ctx.stroke();
-        const mx = (Math.floor((y+999)/16)%2) ? -3 : 3;
-        ctx.beginPath(); ctx.moveTo(mx,y); ctx.lineTo(mx,y+16); ctx.stroke();
-      }
-      ctx.fillStyle='rgba(255,255,255,.18)'; ctx.fillRect(-w/2+3,-h/2+4,4,h-8);
+    if (b.mat === 'stone') {                                   // immovable footing — a soft melty Dalí plinth
+      ctx.beginPath(); rr(-w/2,-h/2,w,h,7); fillOutline('#b9b3d6', 3);
+      ctx.strokeStyle = 'rgba(28,21,48,.22)'; ctx.lineWidth = 1.5;
+      for (let y=-h/2+12; y<h/2-4; y+=16){ ctx.beginPath(); ctx.moveTo(-w/2+3,y); ctx.lineTo(w/2-3,y); ctx.stroke(); }
+      ctx.fillStyle='rgba(255,255,255,.22)'; ctx.fillRect(-w/2+3,-h/2+4,4,h-8);
       return;
     }
-    ctx.beginPath(); rr(-w/2,-h/2,w,h,4); fillOutline('#b07a44', 3);
-    ctx.strokeStyle = 'rgba(28,21,48,.25)'; ctx.lineWidth = 1.5;
-    if (w >= h) { for (let y=-h/2+8; y<h/2-2; y+=9){ ctx.beginPath(); ctx.moveTo(-w/2+4,y); ctx.lineTo(w/2-4,y); ctx.stroke(); } }
-    else        { for (let x=-w/2+8; x<w/2-2; x+=9){ ctx.beginPath(); ctx.moveTo(x,-h/2+4); ctx.lineTo(x,h/2-4); ctx.stroke(); } }
+    // ---- wobbly candy-cane board: a curved banana bar with diagonal stripes ----
+    const col = PAL[b.id % PAL.length];
+    const bow = ((b.id % 7) - 3)/3 * (5 + Math.min(w,h)*0.7);   // each board bends a different way
+    boardPath(w,h,bow); fillOutline(col, 3);
+    ctx.save(); boardPath(w,h,bow); ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,.6)'; const lw = Math.max(4, Math.min(w,h)*0.34); ctx.lineWidth = lw;
+    const reach = w + h;
+    for (let s = -reach; s < reach; s += lw*2) { ctx.beginPath(); ctx.moveTo(s - h, -h/2); ctx.lineTo(s + h, h/2); ctx.stroke(); }
+    ctx.restore();
+    boardPath(w,h,bow); ctx.lineWidth = 3; ctx.lineJoin='round'; ctx.strokeStyle = INK; ctx.stroke();
   });
 }
 function drawCan(can) {
@@ -915,7 +957,7 @@ function physicsStep() {
     // crazy backflip kick the instant it leaves the lip
     if (!launchBoosted && airborne && sled.position.x > LIP.x - 10 && sled.position.y < GROUND_Y - 45) {
       const dir = sled.angularVelocity <= 0 ? -1 : 1;
-      Body.setAngularVelocity(sled, sled.angularVelocity + dir * 0.09);   // crazy backflip kick (air control lets you level out)
+      Body.setAngularVelocity(sled, sled.angularVelocity + dir * 0.05);   // a flip kick (gentler so you can still aim)
       launchBoosted = true;
     }
     // air control — ONLY while airborne; once he touches down, controls stop

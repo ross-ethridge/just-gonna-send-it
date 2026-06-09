@@ -64,30 +64,38 @@ knock them all down and clear the level. 6 levels, escalating towers.
 | `GROUND_Y` | VH−70 | ground line |
 | `ANCHOR` | x=200 | sled start — long runway before the kicker |
 | `RAMP` | x0=1020, R=400, θ=0.73 | kicker arc (~42°, lip ~9 ft up at x≈1287); **big R = long, gentle curve → smooth glide up** (built from `N=30` overlapping segments). Bigger R also lengthens range, so it's paired with the `CANS_X` below. |
-| `LEVEL_X[]` | [3120,3150,3200,3250,3150,3180] | **per-level** ramp→castle distance (`canX()` returns the current level's). Towers sit in the steep DESCENT zone of the ~71 mph arc (which lands ~3220) so the sled drops INTO them, not over. Twins want to sit *farther back* so the sled lands *between* the keeps and cascades both ways. |
+| `LEVEL_X[]` | all 3050 | **per-level** ramp→structure distance (`canX()`). All levels share one cluster centre in the reachable band; towers spread ±~225 around it. |
 | `LAUNCH_EFF` | 0.72 | measured ramp speed loss; used for the trajectory preview |
 | `POWER` | 0.05 | dragDist → launch speed |
-| `MAX_DRAG` | 390 | max pull-back — full send ≈ **71 mph**, fast & punchy; plows clean through the broad keeps |
-| `STONE_H` | 56 | immovable stone footing height under each tower |
-| `PH` | 92 | wood tier height (towers are intentionally big) |
-| `WSPAN` | 72 | half-width of a broad `wideTower`'s two-post stance |
+| `MAX_DRAG` | 390 | max pull-back — full send ≈ **71 mph** |
+| `STONE_H` | 56 | immovable stone **footing** height under each tower (anti-cheat: can't win by plowing the base) |
+| `PH` | 92 | plank/floor height of a tower cell |
+| sled `density` | 0.006 | moderate mass — topples the tower it hits **without bulldozing the whole row** (was 0.010) |
 | `engine.gravity.y` | 0.364 | ≈ real g at the chosen scale (set in `buildLevel`) |
 
 **Scale & calibration (don't guess — these were measured):** 11.2 px/ft (sled ≈ 10 ft = 112
 px). At gravity.y=1.0 Matter's measured step values are gravity ≈0.275 px/step² and air drag
 ≈0.99944/step (velocities are px/step at 60fps). 60 mph ≈ 16.4 px/step.
 
-**Design intent (fun > precision):** the levels are **spacious broad-keep castles** (~48–58 ft,
-**15–51 cans**) that **fall fantastically** — a fast full send (~71 mph) plows clean *through*
-the near keep and the whole connected structure cascades (bridges drag the rest down). Single
-keeps fully demolish in one send; the big triple ramparts (L5/L6) drop ~30–42 of their cans in
-one hit with a few stragglers for a satisfying second send (launches are unlimited; 5 tries).
-The launch is capped so you can't sail clean over the tall keeps. If you retune `POWER`,
-`gravity.y`, `RAMP.theta`, `MAX_DRAG`, or `CANS_X`, **re-verify** (see Testing) — they interact;
-place each level (`LEVEL_X`) in the arc's steep descent zone (lands ~3220) so the sled drops
-INTO the keeps, and keep structures **connected** (bridges) so a near-side hit cascades the
-castle. ⚠️ The ramp is ~42°; **don't flatten it** — 42° is near the 45° max-range angle, so
-flattening REDUCES range.
+**Design intent — it's ANGRY BIRDS (the user's explicit target, with reference images).**
+Levels are **DYNAMIC stacked-plank towers that topple & scatter when hit**, beers (the "pigs")
+perched on roofs and boxed inside cells. A shot knocks over the tower it strikes and scatters
+*its* beers but leaves the others standing, so you **work the level over ~3–4 shots** — the
+whole level must NOT clear in one hit (that read as a "stupid game"). Several towers (varied
+heights, some joined by plank `deck`s) spread across each level; counts ~3–14 beers (L1→L6).
+**By design a few beers can only be reached by air-control STEERING, not a straight shot — the
+user wants that; it's the skill, don't "fix" it.** Heights ~38–57 ft (a tower past ~8 floors
+self-collapses on spawn — keep them moderate). Sled mass was lowered to 0.006 so it topples one
+tower rather than bulldozing the row. If you retune, **re-verify** (see Testing): stable at
+spawn (0 self-knock), one full shot only PARTIALLY clears multi-tower levels, and every level
+is winnable. ⚠️ The ramp is ~42°; **don't flatten it** — 42° is near the 45° max-range angle.
+
+> ⚠️ **History (don't repeat these dead ends):** STATIC scaffolding → beers nested inside get
+> shielded and become unreachable. Linked/tippy dynamic towers → cascade-clear in one hit
+> (trivial) or self-collapse on spawn past ~8 tiers. Surreal tall leaning "noodle" spires were
+> a long detour — the user landed on plain-ish Angry-Birds toppling. Several builder helpers are
+> now **dead code** (`abTower`, `wideTower`, `crown`, `span`, `seussTower`, `bulb`, `spire`,
+> `link`) — only `tower` + `deck` are used.
 
 > 🔴 **CRITICAL — physics is FIXED-TIMESTEP, do not regress this.** Matter velocities and all
 > tuned constants are *per step* (60/s). The loop must advance the sim at a constant rate
@@ -101,33 +109,28 @@ flattening REDUCES range.
 
 ## Structures (the `// Level structures` block)
 
-Builder helpers take `B=addBlock(x,y,w,h,ang,opts)` and `C=addCan(x,baseY)`:
+Builder helpers take `B=addBlock(x,y,w,h,ang,opts)` and `C=addCan(x,baseY)`. `addBlock` honors
+`opts.mat==='stone'` **or** `opts.fixed` → a STATIC block; `post`/`beam` take an optional opts
+arg to pass that through (currently only the stone footing is static).
 
-- `post()` — **wooden** stick support (dynamic).
-- `stonePost()` — wider **static stone** pillar (`isStatic`, `{mat:'stone'}`).
-- `beam()` — horizontal board, returns its top y.
-- `abTower(...,tiers,topCans)` — a *narrow* tower: a short **stone footing** (`STONE_H`,
-  immovable) carrying `tiers` destructible **wood** tiers of [two posts at ±`PSPAN` + beam], 2
-  cans per platform. (Kept for reference; the current levels use the broad `wideTower` instead —
-  the user wanted broad, not skinny, keeps.)
-- **`wideTower(...,tiers,topCans)`** — a BROAD fortress keep: a **wide two-post stance**
-  (footings/posts at ±`WSPAN`=72) with broad boards and **3 cans per platform**. The wide
-  2-post stance is very stable; a 3-post version *rocked* on its middle post and self-knocked —
-  don't go back to 3 posts. Keep ≤5 tiers (6 + a crown gets top-heavy and wobbles).
-- `crown(B,C,X,y)` — a wide **battlement** on top of a single keep: a broad board + 3 cans.
-  Only crown *un-bridged* tops (a bridge and a crown at the same `y` overlap → explosion).
-- `span()` — a board **bridge** between two bare keep tops, 3 cans riding on it. Keeps the
-  castle **connected** so a hit on one keep cascades through all of them ("fall fantastically").
-- `LEVELS[]` — `LEVELS[level](addBlock, addCan, G, ch, canX())` (each level built at its own
-  `LEVEL_X`). Current: **all broad keeps**, single→twin→triple — L1 `wideTower(4)+crown`,
-  L2 `wideTower(5)+crown`, L3 twin `wideTower(4)`+bridge, L4 twin `wideTower(5)`+bridge,
-  L5 twin `wideTower(6)`+bridge (huge), L6 triple `wideTower(4)`+2 bridges. Heights ~48–67 ft,
-  15–42 cans. Posts 19 px wide. **Verify after any change** (drive `physicsStep()` in a tight
-  loop): settle drift <~13 px AND **0 self-knock** over 600 idle steps, AND each level is
-  **winnable within 5 naive full sends** (no steering) — that's the real safety check, since
-  losing 5 launches triggers GAME OVER → restart at level 1. Twins fully cascade and clear in
-  1–2; triples strand a far keep under naive repeats (L6 needs ~5 / some aim), so don't make a
-  triple the only path on an early level — keep them for the finale.
+**Active builders (only these two are used):**
+- **`tower(B,C,X,G,floors,hw)`** — a DYNAMIC Angry-Birds tower: a short immovable **stone
+  footing** (anti-cheat) + `floors` stacked open "cells" (two dynamic planks at ±`hw` + a board
+  on top). A beer is boxed inside every other floor + one on the roof. Returns top y. Topples &
+  scatters when hit. Keep `floors ≤ ~6` and `hw ≈ 38–40` (taller/skinnier self-collapses on spawn).
+- **`deck(B,C,x1,x2,y,n)`** — a plank platform bridging two tower tops with `n` beers on it.
+- `post`/`stonePost`/`beam` are the primitives.
+- `LEVELS[]` — `LEVELS[level](addBlock, addCan, G, ch, canX())`. Current: spread towers of
+  varied height ± decks — L1 one `tower(3)`; L2 two; L3 two + a `deck`; L4 three (tall middle);
+  L5 two decked + a stub; L6 three + two decks. Counts 3,6,8,10,11,14 beers; heights ~38–57 ft.
+- **Dead code (unused, safe to delete):** `abTower`, `wideTower`, `crown`, `span`, `seussTower`,
+  `bulb`, `spire`, `link`, `boardPath`'s Seuss origins, `FX`.
+
+**Verify after any structure change** (drive `physicsStep()` in a tight loop): (1) **stable at
+spawn** — settle ~600 idle steps, 0 self-knock and block drift <~25 px; (2) **not a 1-hit
+clear** — a single full send only PARTIALLY clears a multi-tower level; (3) **winnable** — every
+beer reachable by some power *or* air-control steer (a few REQUIRING a steer is intended). Note:
+losing 5 launches = GAME OVER → restart at level 1, so don't make a level unwinnable.
 
 **Two hard rules (each came from a real failed build — keep them):**
 
