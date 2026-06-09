@@ -56,8 +56,8 @@ knock them all down and clear the level. 6 levels, escalating towers.
 | `WORLD_W` | 4800 | level width (long run-out for the side-scroll) |
 | `GROUND_Y` | VH−70 | ground line |
 | `ANCHOR` | x=200 | sled start — long runway before the kicker |
-| `RAMP` | x0=1020, R=280, θ=0.73 | kicker arc (~42°); more θ = steeper = drops onto towers |
-| `CANS_X` | 2750 | tower center, sits in the landing zone |
+| `RAMP` | x0=1020, R=400, θ=0.73 | kicker arc (~42°, lip ~9 ft up at x≈1287); **big R = long, gentle curve → smooth glide up** (built from `N=30` overlapping segments). Bigger R also lengthens range, so it's paired with the `CANS_X` below. |
+| `CANS_X` | 2750 | tower center; at full pull the sled plows *through* it at ~27 ft (under the ~47 ft top), not over it |
 | `LAUNCH_EFF` | 0.72 | measured ramp speed loss; used for the trajectory preview |
 | `POWER` | 0.05 | dragDist → launch speed |
 | `MAX_DRAG` | 333 | max pull-back — **capped so a full send tops out ~61 mph; you can't fly over the towers** |

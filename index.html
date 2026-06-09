@@ -69,11 +69,11 @@ const ANCHOR = { x: 200, y: GROUND_Y - 18 };          // sled start (long runway
 // Kicker launcher = a steep concave arc that flings the sled into a big spinning
 // backflip jump. (A truly rideable loop traps the sled in 2D physics, so the crazy
 // flips come from a steep kicker + mid-air rotation control instead.)
-const RAMP = { x0: 1020, R: 280, theta: 0.73 };         // ~42° kicker — near-max-range launch into the towers, big air for flips
+const RAMP = { x0: 1020, R: 400, theta: 0.73 };         // ~42° kicker — long, gentle (big R) arc so the sled glides up smoothly; big air for flips
 RAMP.x1   = RAMP.x0 + RAMP.R * Math.sin(RAMP.theta);
 RAMP.topY = GROUND_Y - RAMP.R * (1 - Math.cos(RAMP.theta));
 const LIP = { x: RAMP.x1, y: RAMP.topY };               // takeoff point
-const CANS_X = 2750;                                    // towers downrange, in the landing zone
+const CANS_X = 2750;                                    // towers downrange — sled plows THROUGH them at speed mid-flight
 const LAUNCH_EFF = 0.72;                                // measured: lip speed ≈ 0.72 × launch (ramp loss)
 
 // Tunables (real scale: 11.2 px/ft, g≈0.10/step². 60 mph ≈ 16.4 px/step; full pull ≈ 66 mph)
@@ -189,7 +189,7 @@ function buildLevel() {
     { isStatic: true, label: 'ground', friction: 0.008 });
   // ---- Kicker arc launcher ----
   const segs = [];
-  const N = 22;
+  const N = 30;
   for (let i = 0; i < N; i++) {
     const phi = RAMP.theta * (i + 0.5) / N;
     const P = rampSurface(phi);
