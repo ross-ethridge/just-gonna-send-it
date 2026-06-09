@@ -198,10 +198,13 @@ const PH = 92;            // plank/floor height of a tower cell
 const METAL = { mat: 'metal' };                   // heavy red construction beam
 // metalWalls = number of LOWEST floors whose WALLS (posts) are heavy red metal — a reinforced,
 // harder-to-topple tower (you need a stronger / better-aimed hit). 0 = plain wood.
-function tower(B, C, X, G, floors, hw, metalWalls=0) {
+// ped = extra STONE pedestal height under the footing — raises the whole tower (and its beers)
+// up into the sled's high launch arc so you don't just fly over it.
+function tower(B, C, X, G, floors, hw, metalWalls=0, ped=0) {
   let y = G;
-  stonePost(B, X-hw, y, STONE_H); stonePost(B, X+hw, y, STONE_H);   // immovable footing (can't win by plowing the base)
-  y = beam(B, X, y - STONE_H, hw*2 + 28);
+  const footH = STONE_H + ped;
+  stonePost(B, X-hw, y, footH); stonePost(B, X+hw, y, footH);       // immovable stone base (can't win by plowing it)
+  y = beam(B, X, y - footH, hw*2 + 28);
   for (let f = 0; f < floors; f++) {
     if (f % 2 === 0) C(X, y);                   // a beer boxed inside every other floor
     const wall = (f < metalWalls) ? METAL : undefined;
@@ -221,19 +224,21 @@ function deck(B, C, x1, x2, y, n=2) {
 // Angry-Birds skylines of SEPARATE towers spread across the reachable band. A near tower needs
 // a soft pull, a far one a full send, so each tower is its own aimed shot — you can't sweep the
 // whole level in one go. Towers topple & scatter (metal ceiling beams crash onto the beers below).
+// Pedestal heights raise the towers into the launch arc. NEAR towers (negative offset) are
+// crossed HIGHER by the arc, so they get a TALLER pedestal; far towers sit lower so need less.
 const LEVELS = [
   // 1 — one tower (warm-up)
-  (B,C,G,ch,X) => tower(B,C,X,G,3,40),
+  (B,C,G,ch,X) => tower(B,C,X,G,3,40, 0, 120),
   // 2 — a near tower + a far tower
-  (B,C,G,ch,X) => { tower(B,C,X-230,G,3,38); tower(B,C,X+230,G,4,38); },
+  (B,C,G,ch,X) => { tower(B,C,X-220,G,3,38, 0,210); tower(B,C,X+220,G,4,38, 0,70); },
   // 3 — two spread, one reinforced with a metal-walled base
-  (B,C,G,ch,X) => { tower(B,C,X-235,G,4,38,1); tower(B,C,X+235,G,3,38); },
+  (B,C,G,ch,X) => { tower(B,C,X-225,G,4,38, 1,210); tower(B,C,X+225,G,3,38, 0,70); },
   // 4 — three spread; the tall middle one is reinforced
-  (B,C,G,ch,X) => { tower(B,C,X-345,G,3,38); tower(B,C,X,G,5,40,2); tower(B,C,X+345,G,3,38); },
+  (B,C,G,ch,X) => { tower(B,C,X-330,G,3,38, 0,280); tower(B,C,X,G,5,40, 2,150); tower(B,C,X+330,G,3,38, 0,40); },
   // 5 — three spread, two reinforced
-  (B,C,G,ch,X) => { tower(B,C,X-345,G,4,38,2); tower(B,C,X,G,3,38); tower(B,C,X+345,G,5,40,2); },
+  (B,C,G,ch,X) => { tower(B,C,X-330,G,4,38, 2,280); tower(B,C,X,G,3,38, 0,150); tower(B,C,X+330,G,5,40, 2,40); },
   // 6 — three wide towers, all reinforced (hard)
-  (B,C,G,ch,X) => { tower(B,C,X-360,G,4,38,2); tower(B,C,X,G,5,40,3); tower(B,C,X+360,G,4,38,2); },
+  (B,C,G,ch,X) => { tower(B,C,X-340,G,4,38, 2,300); tower(B,C,X,G,5,40, 3,160); tower(B,C,X+340,G,4,38, 2,50); },
 ];
 
 function buildLevel() {
