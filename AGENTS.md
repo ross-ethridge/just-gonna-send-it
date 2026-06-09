@@ -64,27 +64,30 @@ knock them all down and clear the level. 6 levels, escalating towers.
 | `GROUND_Y` | VH−70 | ground line |
 | `ANCHOR` | x=200 | sled start — long runway before the kicker |
 | `RAMP` | x0=1020, R=400, θ=0.73 | kicker arc (~42°, lip ~9 ft up at x≈1287); **big R = long, gentle curve → smooth glide up** (built from `N=30` overlapping segments). Bigger R also lengthens range, so it's paired with the `CANS_X` below. |
-| `CANS_X` | 2750 | tower center; at full pull the sled plows *through* it at ~27 ft (under the ~47 ft top), not over it |
+| `LEVEL_X[]` | [3120,3150,3200,3250,3150,3180] | **per-level** ramp→castle distance (`canX()` returns the current level's). Towers sit in the steep DESCENT zone of the ~71 mph arc (which lands ~3220) so the sled drops INTO them, not over. Twins want to sit *farther back* so the sled lands *between* the keeps and cascades both ways. |
 | `LAUNCH_EFF` | 0.72 | measured ramp speed loss; used for the trajectory preview |
 | `POWER` | 0.05 | dragDist → launch speed |
-| `MAX_DRAG` | 333 | max pull-back — **capped so a full send tops out ~61 mph; you can't fly over the towers** |
+| `MAX_DRAG` | 390 | max pull-back — full send ≈ **71 mph**, fast & punchy; plows clean through the broad keeps |
 | `STONE_H` | 56 | immovable stone footing height under each tower |
 | `PH` | 92 | wood tier height (towers are intentionally big) |
+| `WSPAN` | 72 | half-width of a broad `wideTower`'s two-post stance |
 | `engine.gravity.y` | 0.364 | ≈ real g at the chosen scale (set in `buildLevel`) |
 
 **Scale & calibration (don't guess — these were measured):** 11.2 px/ft (sled ≈ 10 ft = 112
 px). At gravity.y=1.0 Matter's measured step values are gravity ≈0.275 px/step² and air drag
 ≈0.99944/step (velocities are px/step at 60fps). 60 mph ≈ 16.4 px/step.
 
-**Design intent (fun > precision):** towers are deliberately **big & exaggerated** (~47–65 ft,
-10–33 cans) and launch speed is **capped** so the natural full-power "send it" lands in the
-demolition zone — you physically can't overshoot. A full send knocks down most/all of a tower
-at once (the crazy backflip adds variance; single-tower levels usually clear in one send,
-multi-tower L3/L6 in two — launches are unlimited). Sweet spot ≈ **60–63 mph**; below ~58 mph
-it falls short. If you retune `POWER`, `gravity.y`, `RAMP.theta`, `MAX_DRAG`, or `CANS_X`,
-**re-verify** (see Testing) — they interact and it's easy to recreate the "flies over every
-time" bug. ⚠️ The ramp is ~42°; **don't flatten it to widen the window** — 42° is near the
-45° max-range angle, so flattening REDUCES range and the sled falls short of the towers.
+**Design intent (fun > precision):** the levels are **spacious broad-keep castles** (~48–58 ft,
+**15–51 cans**) that **fall fantastically** — a fast full send (~71 mph) plows clean *through*
+the near keep and the whole connected structure cascades (bridges drag the rest down). Single
+keeps fully demolish in one send; the big triple ramparts (L5/L6) drop ~30–42 of their cans in
+one hit with a few stragglers for a satisfying second send (launches are unlimited; 5 tries).
+The launch is capped so you can't sail clean over the tall keeps. If you retune `POWER`,
+`gravity.y`, `RAMP.theta`, `MAX_DRAG`, or `CANS_X`, **re-verify** (see Testing) — they interact;
+place each level (`LEVEL_X`) in the arc's steep descent zone (lands ~3220) so the sled drops
+INTO the keeps, and keep structures **connected** (bridges) so a near-side hit cascades the
+castle. ⚠️ The ramp is ~42°; **don't flatten it** — 42° is near the 45° max-range angle, so
+flattening REDUCES range.
 
 > 🔴 **CRITICAL — physics is FIXED-TIMESTEP, do not regress this.** Matter velocities and all
 > tuned constants are *per step* (60/s). The loop must advance the sim at a constant rate
@@ -103,16 +106,28 @@ Builder helpers take `B=addBlock(x,y,w,h,ang,opts)` and `C=addCan(x,baseY)`:
 - `post()` — **wooden** stick support (dynamic).
 - `stonePost()` — wider **static stone** pillar (`isStatic`, `{mat:'stone'}`).
 - `beam()` — horizontal board, returns its top y.
-- `abTower(...,tiers,topCans)` — a tower = a short **stone footing** (`STONE_H`, immovable)
-  carrying `tiers` destructible **wood** tiers of [two posts + beam]. Cans ride the footing
-  beam AND every wood platform, so targets span a tall range. `tiers` is the count of *wood*
-  tiers above the footing.
-- `span()` — a board bridging two bare tower tops, cans riding on it.
-- `LEVELS[]` — one arrow fn per level composing the above; called as
-  `LEVELS[level](addBlock, addCan, G, ch, CANS_X)`. Wood-tier counts: L1=4, L2=5, L3=2×4+span,
-  L4=6, L5=2×5+span, L6=3×5+span → heights ~47–65 ft, 10–33 cans. Posts are 19 px wide for
-  stability at these heights (tall thin stacks self-collapse on spawn). Verify settle <~25 px
-  AND that nothing self-knocks during a 600-step idle (light cans on a tall tower can drift).
+- `abTower(...,tiers,topCans)` — a *narrow* tower: a short **stone footing** (`STONE_H`,
+  immovable) carrying `tiers` destructible **wood** tiers of [two posts at ±`PSPAN` + beam], 2
+  cans per platform. (Kept for reference; the current levels use the broad `wideTower` instead —
+  the user wanted broad, not skinny, keeps.)
+- **`wideTower(...,tiers,topCans)`** — a BROAD fortress keep: a **wide two-post stance**
+  (footings/posts at ±`WSPAN`=72) with broad boards and **3 cans per platform**. The wide
+  2-post stance is very stable; a 3-post version *rocked* on its middle post and self-knocked —
+  don't go back to 3 posts. Keep ≤5 tiers (6 + a crown gets top-heavy and wobbles).
+- `crown(B,C,X,y)` — a wide **battlement** on top of a single keep: a broad board + 3 cans.
+  Only crown *un-bridged* tops (a bridge and a crown at the same `y` overlap → explosion).
+- `span()` — a board **bridge** between two bare keep tops, 3 cans riding on it. Keeps the
+  castle **connected** so a hit on one keep cascades through all of them ("fall fantastically").
+- `LEVELS[]` — `LEVELS[level](addBlock, addCan, G, ch, canX())` (each level built at its own
+  `LEVEL_X`). Current: **all broad keeps**, single→twin→triple — L1 `wideTower(4)+crown`,
+  L2 `wideTower(5)+crown`, L3 twin `wideTower(4)`+bridge, L4 twin `wideTower(5)`+bridge,
+  L5 twin `wideTower(6)`+bridge (huge), L6 triple `wideTower(4)`+2 bridges. Heights ~48–67 ft,
+  15–42 cans. Posts 19 px wide. **Verify after any change** (drive `physicsStep()` in a tight
+  loop): settle drift <~13 px AND **0 self-knock** over 600 idle steps, AND each level is
+  **winnable within 5 naive full sends** (no steering) — that's the real safety check, since
+  losing 5 launches triggers GAME OVER → restart at level 1. Twins fully cascade and clear in
+  1–2; triples strand a far keep under naive repeats (L6 needs ~5 / some aim), so don't make a
+  triple the only path on an early level — keep them for the finale.
 
 **Two hard rules (each came from a real failed build — keep them):**
 

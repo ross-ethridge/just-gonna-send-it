@@ -102,12 +102,15 @@ const RAMP = { x0: 1020, R: 400, theta: 0.73 };         // ~42° kicker — long
 RAMP.x1   = RAMP.x0 + RAMP.R * Math.sin(RAMP.theta);
 RAMP.topY = GROUND_Y - RAMP.R * (1 - Math.cos(RAMP.theta));
 const LIP = { x: RAMP.x1, y: RAMP.topY };               // takeoff point
-const CANS_X = 2750;                                    // towers downrange — sled plows THROUGH them at speed mid-flight
+// Ramp→castle distance, PER LEVEL (the ~71 mph arc lands ~3220; towers sit in its steep
+// descent zone so the sled drops INTO them rather than cresting over). Tune each level here.
+const LEVEL_X = [3120, 3150, 3200, 3250, 3150, 3180];
+const canX = () => LEVEL_X[level];
 const LAUNCH_EFF = 0.72;                                // measured: lip speed ≈ 0.72 × launch (ramp loss)
 
 // Tunables (real scale: 11.2 px/ft, g≈0.10/step². 60 mph ≈ 16.4 px/step; full pull ≈ 66 mph)
 const POWER = 0.05;            // drag -> launch speed
-const MAX_DRAG = 333;          // capped so a full send tops out ~61 mph — lands in the demolition zone, CAN'T fly over
+const MAX_DRAG = 390;          // full send ~72 mph — fast & punchy, plows clean through the broad keeps
 
 // Point on the ramp surface for arc parameter phi (0..theta)
 function rampSurface(phi) {
@@ -197,13 +200,43 @@ function span(B, C, x1, x2, y) {
   C(x1 + (x2-x1)*0.3, top); C(cx, top); C(x1 + (x2-x1)*0.7, top);
   return top;
 }
+// A wide battlement crown on top of a single tower: a broad board with three cans across it.
+function crown(B, C, X, y) {
+  const top = beam(B, X, y, 168);
+  C(X - 52, top); C(X, top); C(X + 52, top);
+  return top;
+}
+// A BROAD fortress tower: a WIDE two-post stance (very stable — no rocking middle post),
+// broad boards, three cans per platform.
+const WSPAN = 72;
+function wideTower(B, C, G, ch, X, tiers, topCans=true) {
+  let y = G;
+  stonePost(B, X-WSPAN, y, STONE_H); stonePost(B, X+WSPAN, y, STONE_H);
+  y = beam(B, X, y - STONE_H, WSPAN*2 + 40);
+  C(X-46, y); C(X, y); C(X+46, y);
+  for (let t = 0; t < tiers; t++) {
+    post(B, X-WSPAN, y, PH); post(B, X+WSPAN, y, PH);
+    y = beam(B, X, y - PH, WSPAN*2 + 40);
+    if (t < tiers - 1 || topCans) { C(X-46, y); C(X, y); C(X+46, y); }
+  }
+  return y;
+}
+// Spacious BROAD-keep castles that domino fantastically when you plow through them.
+// Progression: single → twin → triple, all wide fortress towers, linked by bridges so a hit
+// on the near keep cascades through the whole structure.
 const LEVELS = [
-  (B,C,G,ch,X) => abTower(B,C,G,ch,X, 4),                                                                          // big single
-  (B,C,G,ch,X) => abTower(B,C,G,ch,X, 5),                                                                          // taller
-  (B,C,G,ch,X) => { const y=abTower(B,C,G,ch,X-110,4,false); abTower(B,C,G,ch,X+110,4,false); span(B,C,X-110,X+110,y); },
-  (B,C,G,ch,X) => abTower(B,C,G,ch,X, 6),                                                                          // tower of power
-  (B,C,G,ch,X) => { const y=abTower(B,C,G,ch,X-130,5,false); abTower(B,C,G,ch,X+130,5,false); span(B,C,X-130,X+130,y); },
-  (B,C,G,ch,X) => { const y=abTower(B,C,G,ch,X-180,5,false); abTower(B,C,G,ch,X,5,false); abTower(B,C,G,ch,X+180,5,false); span(B,C,X-180,X+180,y); },
+  // 1 — broad keep with a battlement crown
+  (B,C,G,ch,X) => { const y = wideTower(B,C,G,ch,X, 4, false); crown(B,C,X,y); },
+  // 2 — taller broad keep, battlements
+  (B,C,G,ch,X) => { const y = wideTower(B,C,G,ch,X, 5, false); crown(B,C,X,y); },
+  // 3 — twin keeps joined by a bridge
+  (B,C,G,ch,X) => { const y=wideTower(B,C,G,ch,X-150,4,false); wideTower(B,C,G,ch,X+150,4,false); span(B,C,X-150,X+150,y); },
+  // 4 — taller twin keeps + bridge
+  (B,C,G,ch,X) => { const y=wideTower(B,C,G,ch,X-150,5,false); wideTower(B,C,G,ch,X+150,5,false); span(B,C,X-150,X+150,y); },
+  // 5 — twin TALL keeps + bridge (both fully reachable)
+  (B,C,G,ch,X) => { const y=wideTower(B,C,G,ch,X-160,6,false); wideTower(B,C,G,ch,X+160,6,false); span(B,C,X-160,X+160,y); },
+  // 6 — grand fortress: three keeps, two bridges
+  (B,C,G,ch,X) => { const a=X-190,b=X,c=X+190; const y=wideTower(B,C,G,ch,a,4,false); wideTower(B,C,G,ch,b,4,false); wideTower(B,C,G,ch,c,4,false); span(B,C,a,b,y); span(B,C,b,c,y); },
 ];
 
 function buildLevel() {
@@ -249,7 +282,7 @@ function buildLevel() {
     c.ox = x; c.oy = baseY - ch/2;                    // remember start, to detect being shoved
     cans.push(c); Composite.add(world, c); return c;
   };
-  LEVELS[level](addBlock, addCan, G, ch, CANS_X);     // build this level's tower(s)
+  LEVELS[level](addBlock, addCan, G, ch, canX());     // build this level's tower(s) at its own distance
   sled = makeSled();
   totalEl.textContent = cans.length;
   levelEl.textContent = level + 1;
@@ -362,7 +395,7 @@ function startGameOver() {
   // freeze a crashed wreck right in front of the towers that beat him, with the crowd watching
   Body.setStatic(sled, true); Body.setVelocity(sled, {x:0,y:0}); Body.setAngularVelocity(sled, 0);
   Body.setAngle(sled, Math.PI * 0.88);                 // flipped on its back
-  Body.setPosition(sled, { x: CANS_X - 150, y: GROUND_Y - 10 });
+  Body.setPosition(sled, { x: canX() - 150, y: GROUND_Y - 10 });
   sndFail();
   // back to square one after the shame sinks in
   setTimeout(() => { level = 0; buildLevel(); }, 5200);
