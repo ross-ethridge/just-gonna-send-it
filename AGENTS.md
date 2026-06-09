@@ -116,11 +116,13 @@ Builder helpers take `B=addBlock(x,y,w,h,ang,opts)` and `C=addCan(x,baseY)`. `ad
 arg to pass that through (currently only the stone footing is static).
 
 **Active builder (`tower`):**
-- **`tower(B,C,X,G,floors,hw)`** — a DYNAMIC Angry-Birds tower: a short immovable **stone
-  footing** (anti-cheat) + `floors` stacked open "cells" (two dynamic planks at ±`hw` + a board
-  on top). A beer is boxed inside every other floor + one on the roof; **every other ceiling is
-  a heavy red `METAL` beam** (`{mat:'metal'}` → drawn as a riveted red girder, falls & crushes
-  the beer below). Keep `floors ≤ ~6`, `hw ≈ 38–40` (taller/skinnier self-collapses on spawn).
+- **`tower(B,C,X,G,floors,hw,metalWalls=0)`** — a DYNAMIC Angry-Birds tower: a short immovable
+  **stone footing** (anti-cheat) + `floors` stacked open "cells" (two dynamic planks at ±`hw` +
+  a board). A beer is boxed inside every other floor + one on the roof; **every other ceiling is
+  a heavy red `METAL` beam** (`{mat:'metal'}` → riveted red girder, falls & crushes the beer
+  below). **`metalWalls`** = how many of the LOWEST floors have **metal posts (red walls)** → a
+  reinforced, heavier, harder-to-topple tower (difficulty knob; later levels use 1–3). Keep
+  `floors ≤ ~6`, `hw ≈ 38–40`. Verify metal towers stay topple-able (every beer still reachable).
 - `deck(B,C,...)` exists (a metal girder bridging two towers) but is **currently unused** —
   decks connect towers so a hit cascades both, which fights the multi-shot design; avoid.
 - `LEVELS[]` — **SEPARATE towers spread ±~360 across the reachable band** (no decks): L1 one

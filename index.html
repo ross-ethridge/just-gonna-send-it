@@ -179,13 +179,16 @@ const PH = 92;            // plank/floor height of a tower cell
 // Knock the tower over and the beers tumble. Several spread towers per level, so one shot
 // topples ~one tower and you chip the rest down over a few shots.
 const METAL = { mat: 'metal' };                   // heavy red construction beam
-function tower(B, C, X, G, floors, hw) {
+// metalWalls = number of LOWEST floors whose WALLS (posts) are heavy red metal — a reinforced,
+// harder-to-topple tower (you need a stronger / better-aimed hit). 0 = plain wood.
+function tower(B, C, X, G, floors, hw, metalWalls=0) {
   let y = G;
   stonePost(B, X-hw, y, STONE_H); stonePost(B, X+hw, y, STONE_H);   // immovable footing (can't win by plowing the base)
   y = beam(B, X, y - STONE_H, hw*2 + 28);
   for (let f = 0; f < floors; f++) {
     if (f % 2 === 0) C(X, y);                   // a beer boxed inside every other floor
-    post(B, X-hw, y, PH); post(B, X+hw, y, PH);
+    const wall = (f < metalWalls) ? METAL : undefined;
+    post(B, X-hw, y, PH, wall); post(B, X+hw, y, PH, wall);
     // every other ceiling is a heavy red METAL beam — when the tower goes, it slams down on the beer below
     y = beam(B, X, y - PH, hw*2 + 28, (f % 2 === 1) ? METAL : undefined);
   }
@@ -206,14 +209,14 @@ const LEVELS = [
   (B,C,G,ch,X) => tower(B,C,X,G,3,40),
   // 2 — a near tower + a far tower
   (B,C,G,ch,X) => { tower(B,C,X-230,G,3,38); tower(B,C,X+230,G,4,38); },
-  // 3 — two spread, taller
-  (B,C,G,ch,X) => { tower(B,C,X-235,G,4,38); tower(B,C,X+235,G,3,38); },
-  // 4 — three spread across the band
-  (B,C,G,ch,X) => { tower(B,C,X-345,G,3,38); tower(B,C,X,G,5,40); tower(B,C,X+345,G,3,38); },
-  // 5 — three spread, varied heights
-  (B,C,G,ch,X) => { tower(B,C,X-345,G,4,38); tower(B,C,X,G,3,38); tower(B,C,X+345,G,5,40); },
-  // 6 — three wide towers (the full spread)
-  (B,C,G,ch,X) => { tower(B,C,X-360,G,4,38); tower(B,C,X,G,5,40); tower(B,C,X+360,G,4,38); },
+  // 3 — two spread, one reinforced with a metal-walled base
+  (B,C,G,ch,X) => { tower(B,C,X-235,G,4,38,1); tower(B,C,X+235,G,3,38); },
+  // 4 — three spread; the tall middle one is reinforced
+  (B,C,G,ch,X) => { tower(B,C,X-345,G,3,38); tower(B,C,X,G,5,40,2); tower(B,C,X+345,G,3,38); },
+  // 5 — three spread, two reinforced
+  (B,C,G,ch,X) => { tower(B,C,X-345,G,4,38,2); tower(B,C,X,G,3,38); tower(B,C,X+345,G,5,40,2); },
+  // 6 — three wide towers, all reinforced (hard)
+  (B,C,G,ch,X) => { tower(B,C,X-360,G,4,38,2); tower(B,C,X,G,5,40,3); tower(B,C,X+360,G,4,38,2); },
 ];
 
 function buildLevel() {
