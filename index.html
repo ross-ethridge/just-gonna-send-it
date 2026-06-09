@@ -74,6 +74,8 @@
 </div>
 
 <script src="matter.min.js"></script><!-- Matter.js 0.20.0 vendored locally (no external CDN dependency) -->
+<!-- Fallback: if the local copy didn't load (e.g. opening the lone file:// via a sandbox portal), pull it from the CDN -->
+<script>if(typeof Matter==='undefined'){document.write('<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"><\/scr'+'ipt>');}</script>
 <script>
 const { Engine, Bodies, Body, Composite, Vector, Query } = Matter;
 
