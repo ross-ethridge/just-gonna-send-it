@@ -45,8 +45,15 @@ knock them all down and clear the level. 6 levels, escalating towers.
    (`drawCrowd`/`drawKenny`, orange parkas, hoods, eyes-only) cheering around him, fires
    confetti + air-horn + `sndCrowd()` roar, then advances after a timeout. `maybeRespawn` is
    suppressed during `winPending` so the sled isn't teleported back to the start.
-7. **Respawn (`maybeRespawn`):** off-world or settled (slow ~900ms) ⇒ remove sled, rebuild a
-   fresh static one at ANCHOR, back to `state='aim'`.
+7. **Respawn (`maybeRespawn`):** off-world or settled ⇒ if `shots >= MAX_TRIES` (5) and the
+   level isn't cleared, call **`startGameOver()`** instead of respawning; otherwise remove the
+   sled, rebuild a fresh static one at ANCHOR, back to `state='aim'`.
+8. **GAME OVER (`startGameOver`)** — the mirror of the celebration. Freezes the sled flipped on
+   its back in front of the towers, shows the `#win` overlay with a `.over` class (red wash) +
+   "GAME OVER 💀" and a random `FAIL_SUBS` line, plays `sndFail()` (sad trombone), and draws
+   `drawWreck` (Larry sprawled, dazed — X-eyes/stars/spilled beer) with `drawCrowd(..., false)`
+   (Kennys arms-down, disappointed — `drawKenny`'s `cheer=false` mode). Auto-resets to level 1
+   after ~5.2 s. `physicsStep` early-returns while `gameOver` so the scene holds still.
 
 ## Key constants (in the `// Tunables` / viewport block near the top)
 

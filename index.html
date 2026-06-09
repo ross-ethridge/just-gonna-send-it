@@ -29,6 +29,8 @@
   #win .big { font-size: 64px; font-weight: 900; letter-spacing: 2px;
     text-shadow: 0 4px 16px rgba(0,0,0,.5); }
   #win .sub { font-size: 20px; margin-top: 8px; opacity: .9; }
+  #win.over { background: rgba(40,8,8,.62); }                 /* GAME OVER: angry red wash */
+  #win.over .big { color: #ff5a5a; text-shadow: 0 4px 18px rgba(0,0,0,.6); }
   /* On-screen flip buttons (touch only) — hold to rotate the sled mid-air, like ◄ ► / A,D */
   .flipbtn { position: absolute; bottom: 22px; width: 78px; height: 78px; border-radius: 50%;
     display: none; align-items: center; justify-content: center; font-size: 34px; color: #fff;
@@ -60,7 +62,7 @@
     <h1>🏔️ JUST GONNA SEND IT</h1>
     <div class="stat">Level <span id="level">1</span> / <span id="levels">6</span></div>
     <div class="stat">Cans down: <span id="score">0</span> / <span id="total">0</span></div>
-    <div class="stat">Launches: <span id="shots">0</span></div>
+    <div class="stat">Launches: <span id="shots">0</span> / 5</div>
   </div>
   <div id="help">Drag back &amp; release to send it off the kicker • ◄ ► / A,D to flip &amp; level out mid-air • R resets • M mutes</div>
   <button id="restartgame">⟲ Reset game</button>
@@ -139,6 +141,8 @@ let state = 'aim';                       // 'aim' | 'fly'
 let score = 0, shots = 0, dragWorld = null, dragging = false, restT = 0, launchBoosted = false, level = 0;
 let celebrating = false, celebrateBig = false, celebrateT = 0, prevAirborne = false;
 let winPending = false, winT = 0;        // beat between the last can falling and Larry hopping off
+let gameOver = false, overT = 0;         // GAME OVER state (failed to clear a level in MAX_TRIES launches)
+const MAX_TRIES = 5;
 const cam = { x: 0, y: 0 };
 
 // Ambient falling snow (screen-space, cosmetic)
@@ -206,9 +210,9 @@ function buildLevel() {
   world = engine.world;
   cans = []; blocks = []; burstP = [];
   score = 0; shots = 0; state = 'aim'; dragging = false; dragWorld = null; restT = 0;
-  celebrating = false; winPending = false; winT = 0;
+  celebrating = false; winPending = false; winT = 0; gameOver = false; overT = 0;
   cam.x = 0; cam.y = 0;
-  winEl.classList.remove('show');
+  winEl.classList.remove('show', 'over');
 
   const ground = Bodies.rectangle(WORLD_W/2, GROUND_Y + 80, WORLD_W + 600, 160,
     { isStatic: true, label: 'ground', friction: 0.008 });
@@ -340,6 +344,27 @@ function startCelebration() {
   if (last) { setTimeout(sndAirhorn, 350); setTimeout(sndAirhorn, 700); }
   setTimeout(() => { level = last ? 0 : level + 1; buildLevel(); }, last ? 5000 : 2900);
 }
+const FAIL_SUBS = [
+  "Larry did NOT send it.",
+  "The cans remain undefeated. 🍺",
+  "Maybe ease up on the beers next time, bud.",
+  "5 launches, 0 glory. Brutal.",
+  "That one's gonna leave a mark.",
+];
+function startGameOver() {
+  engineStop();
+  gameOver = true; overT = 0;
+  winBig.textContent = 'GAME OVER 💀';
+  winSub.textContent = FAIL_SUBS[Math.floor(Math.random()*FAIL_SUBS.length)] + ` (Level ${level+1} — ${score}/${cans.length} cans)`;
+  winEl.classList.add('show', 'over');
+  // freeze a crashed wreck right in front of the towers that beat him, with the crowd watching
+  Body.setStatic(sled, true); Body.setVelocity(sled, {x:0,y:0}); Body.setAngularVelocity(sled, 0);
+  Body.setAngle(sled, Math.PI * 0.88);                 // flipped on its back
+  Body.setPosition(sled, { x: CANS_X - 150, y: GROUND_Y - 10 });
+  sndFail();
+  // back to square one after the shame sinks in
+  setTimeout(() => { level = 0; buildLevel(); }, 5200);
+}
 
 // ---- Particles ----
 function burst(x,y){ for(let i=0;i<16;i++){ const a=Math.random()*Math.PI*2, s=2+Math.random()*5;
@@ -434,6 +459,11 @@ function sndCrowd(dur){                       // a roaring crowd of Kennys (nois
     setTimeout(()=>tone(1100+Math.random()*900, 0.18, 'sine', 0.05, 1700+Math.random()*600), ts*1000); }
 }
 function sndThud(){ noiseBurst(0.12,0.16,180); tone(95,0.16,'sine',0.14,55); }
+function sndFail(){                           // sad trombone: womp-womp-womp-wommmp
+  noiseBurst(0.18,0.13,120);                  // the crash thud first
+  const seq=[[233,0.42],[207,0.42],[185,0.46],[155,0.95]]; let at=0.12;
+  seq.forEach(([f,d])=>{ setTimeout(()=>tone(f,d,'sawtooth',0.12,f*0.91), at*1000); at+=d*0.88; });
+}
 function stepParticles(){ for(const p of burstP){p.x+=p.vx;p.y+=p.vy;p.vy+=0.18;p.life-=0.022;}
   burstP = burstP.filter(p=>p.life>0); }
 function stepSnow(){ for(const f of snow){ f.y+=f.s; f.x+=f.drift;
@@ -464,7 +494,10 @@ function maybeRespawn(dt) {
   if (state !== 'fly') return;
   const off = sled.position.x > WORLD_W+300 || sled.position.x < -300 || sled.position.y > VH+400;
   restT = sceneSettled() ? restT + dt : 0;       // only count rest once nothing is still wobbling
-  if (off || restT > 700) { engineStop(); Composite.remove(world, sled); sled = makeSled(); state = 'aim'; }
+  if (off || restT > 700) {
+    if (shots >= MAX_TRIES && score < cans.length) { startGameOver(); return; }   // out of tries, level not cleared
+    engineStop(); Composite.remove(world, sled); sled = makeSled(); state = 'aim';
+  }
 }
 
 // ================= RENDER =================
@@ -654,22 +687,68 @@ function drawStandingLarry(cx, groundY, t) {
   }
   ctx.restore();
 }
+// ---- GAME OVER: Larry wiped out (flat on his back, dazed, beer spilled) ----
+function drawDazedHead(t) {
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  // mullet behind
+  ctx.fillStyle='#6b4a2a'; ctx.beginPath(); ctx.ellipse(2,2,17,16,0,0,Math.PI*2); ctx.fill();
+  // face
+  ctx.beginPath(); ctx.arc(0,0,15,0,Math.PI*2); fillOutline('#ffce9c',3);
+  // X-ed out eyes
+  ctx.strokeStyle=INK; ctx.lineWidth=2.6;
+  for (const ex of [-6,6]) { ctx.beginPath(); ctx.moveTo(ex-3,-4); ctx.lineTo(ex+3,2); ctx.moveTo(ex+3,-4); ctx.lineTo(ex-3,2); ctx.stroke(); }
+  // mustache + woozy mouth
+  ctx.strokeStyle='#6b4a2a'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(-7,7); ctx.quadraticCurveTo(0,11,7,7); ctx.stroke();
+  // orange aviators knocked askew up on the forehead
+  ctx.save(); ctx.translate(0,-11); ctx.rotate(0.28);
+  ctx.beginPath(); rr(-12,-3,24,6,2); fillOutline('#ff7b1a',1.8); ctx.restore();
+  // dizzy stars orbiting overhead
+  ctx.fillStyle='#ffd84a'; ctx.font='900 14px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  for (let i=0;i<3;i++){ const a=t*0.02 + i*Math.PI*2/3; ctx.fillText('★', Math.cos(a)*20, -20 + Math.sin(a)*6); }
+  ctx.textBaseline='alphabetic';
+}
+function drawWreck(cx, groundY, t) {
+  ctx.save();
+  ctx.translate(cx, groundY);
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  const tw = Math.sin(t*0.006)*4;                                // feeble leg twitch
+  ctx.fillStyle='rgba(28,21,48,.14)'; ctx.beginPath(); ctx.ellipse(-4,-3,54,7,0,0,Math.PI*2); ctx.fill();
+  // legs (jeans) flopped up in the air, boots on top
+  ctx.strokeStyle=INK;       ctx.lineWidth=15; ctx.beginPath(); ctx.moveTo(18,-14); ctx.lineTo(38,-32+tw); ctx.moveTo(22,-12); ctx.lineTo(48,-20-tw); ctx.stroke();
+  ctx.strokeStyle='#5f86bd'; ctx.lineWidth=11; ctx.beginPath(); ctx.moveTo(18,-14); ctx.lineTo(38,-32+tw); ctx.moveTo(22,-12); ctx.lineTo(48,-20-tw); ctx.stroke();
+  ctx.beginPath(); rr(34,-39+tw,13,9,3); fillOutline('#2c2740',2); ctx.beginPath(); rr(44,-26-tw,13,9,3); fillOutline('#2c2740',2);
+  // torso lying flat on its back (denim)
+  ctx.beginPath(); rr(-30,-26,54,22,9); fillOutline('#7ba6da',3);
+  // splayed arm flopped out to the side
+  ctx.strokeStyle=INK;       ctx.lineWidth=13; ctx.beginPath(); ctx.moveTo(-20,-10); ctx.lineTo(-42,2); ctx.stroke();
+  ctx.strokeStyle='#7ba6da'; ctx.lineWidth=10; ctx.beginPath(); ctx.moveTo(-20,-10); ctx.lineTo(-42,2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-44,3,5,0,Math.PI*2); fillOutline('#ffd0a0',2.2);
+  // spilled beer + puddle by the hand
+  ctx.fillStyle='rgba(255,210,74,.45)'; ctx.beginPath(); ctx.ellipse(-60,4,17,4,0,0,Math.PI*2); ctx.fill();
+  ctx.save(); ctx.translate(-56,-1); ctx.rotate(-0.6); ctx.beginPath(); rr(-6,-10,12,20,3); fillOutline('#ffd23a',2.2); ctx.restore();
+  // dazed head at the upper-left, lying back
+  ctx.save(); ctx.translate(-40,-22); drawDazedHead(t); ctx.restore();
+  ctx.restore();
+}
 // ---- Kenny-from-South-Park spectator (orange parka, hood, only eyes peeking out) ----
-function drawKenny(t, phase) {
-  const hop  = Math.abs(Math.sin(t*0.013 + phase)) * 7;        // jumping for joy
-  const wave = Math.sin(t*0.02 + phase) * 6;                   // arm waggle
+// cheer=true: jumping & arms up.  cheer=false: arms down, slow disappointed head-shake.
+function drawKenny(t, phase, cheer=true) {
+  const hop  = cheer ? Math.abs(Math.sin(t*0.013 + phase)) * 7 : 0;
+  const wave = cheer ? Math.sin(t*0.02 + phase) * 6 : 0;
+  const sway = cheer ? 0 : Math.sin(t*0.005 + phase) * 2.4;     // "tsk tsk" head shake
   const ORANGE='#f7621b', FUR='#7a4a28';
   ctx.save();
-  ctx.translate(0, -hop);
+  ctx.translate(sway, -hop);
   ctx.lineJoin='round'; ctx.lineCap='round';
   ctx.fillStyle='rgba(28,21,48,.12)'; ctx.beginPath(); ctx.ellipse(0, 2+hop, 16, 4, 0, 0, Math.PI*2); ctx.fill();
   // tiny black shoes + orange snow-pant legs
   ctx.fillStyle=INK; ctx.beginPath(); rr(-11,-5,10,5,2); ctx.fill(); ctx.beginPath(); rr(1,-5,10,5,2); ctx.fill();
   ctx.strokeStyle=INK;    ctx.lineWidth=11; ctx.beginPath(); ctx.moveTo(-6,-26); ctx.lineTo(-6,-4); ctx.moveTo(6,-26); ctx.lineTo(6,-4); ctx.stroke();
   ctx.strokeStyle=ORANGE; ctx.lineWidth=8;  ctx.beginPath(); ctx.moveTo(-6,-26); ctx.lineTo(-6,-5); ctx.moveTo(6,-26); ctx.lineTo(6,-5); ctx.stroke();
-  // raised arms (orange sleeves) + brown mittens, waving
+  // arms: raised & waving (cheer) or hanging at the sides (disappointed)
   for (const s of [-1,1]) {
-    const ax=s*12, ay=-30, hxx=s*23, hyy=-52 - Math.abs(wave);
+    const ax = cheer ? s*12 : s*13, ay = cheer ? -30 : -46;
+    const hxx = cheer ? s*23 : s*15, hyy = cheer ? -52 - Math.abs(wave) : -22;
     ctx.strokeStyle=INK;    ctx.lineWidth=12; ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(hxx,hyy); ctx.stroke();
     ctx.strokeStyle=ORANGE; ctx.lineWidth=9;  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(hxx,hyy); ctx.stroke();
     ctx.beginPath(); ctx.arc(hxx,hyy,6,0,Math.PI*2); fillOutline(FUR,2.4);          // brown mitten
@@ -689,15 +768,15 @@ function drawKenny(t, phase) {
   ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-3,hy+11); ctx.lineTo(-3,hy+18); ctx.moveTo(3,hy+11); ctx.lineTo(3,hy+18); ctx.stroke();
   ctx.restore();
 }
-// A crowd of Kennys flanking Larry, cheering him on
-function drawCrowd(centerX, groundY, t) {
+// A crowd of Kennys flanking Larry — cheering (win) or arms-down disappointed (game over)
+function drawCrowd(centerX, groundY, t, cheer=true) {
   const spots = [-235,-198,-160,-122, 82,118,156,196,236];   // gap in the middle for Larry
   spots.forEach((dx, i) => {
     ctx.save();
     ctx.translate(centerX + dx, groundY + ((i*13)%9) - 2);   // slight depth jitter
     const sc = 0.82 + ((i*7)%5)/24;
     ctx.scale(sc, sc);
-    drawKenny(t, i*1.27);
+    drawKenny(t, i*1.27, cheer);
     ctx.restore();
   });
 }
@@ -791,7 +870,7 @@ function drawSnow(){ ctx.fillStyle='rgba(255,255,255,.85)';
 const STEP = 1000/60;
 let acc = 0, last = performance.now();
 function physicsStep() {
-  if (state !== 'fly') return;
+  if (state !== 'fly' || gameOver) return;
   if (!celebrating) {
     // airborne = clearly up in the air AND not touching anything. (Both are needed:
     // a resting/bouncing sled's contact flickers, so "not touching" alone lets it
@@ -840,6 +919,7 @@ function loop(now) {
     if (Math.random() < (celebrateBig ? 0.95 : 0.55)) confetti(cam.x + Math.random()*VW, cam.y - 10, celebrateBig ? 5 : 3);
     if (celebrateBig && Math.random() < 0.22) confetti(cam.x + Math.random()*VW, cam.y + Math.random()*VH*0.5, 14);
   }
+  if (gameOver) overT += frame;
   stepParticles(); stepSnow(); stepCamera();
 
   // clear full backing (letterbox bars)
@@ -863,8 +943,11 @@ function loop(now) {
   for (const can of cans) drawCan(can);
   drawSnowmobile(sled);                                // parked (empty) during celebration
   if (celebrating) {
-    drawCrowd(sled.position.x - 96, GROUND_Y, celebrateT);     // Kenny audience behind
+    drawCrowd(sled.position.x - 96, GROUND_Y, celebrateT);     // Kenny audience behind, cheering
     drawStandingLarry(sled.position.x - 96, GROUND_Y, celebrateT);
+  } else if (gameOver) {
+    drawCrowd(sled.position.x + 70, GROUND_Y, overT, false);   // crowd looking on, disappointed
+    drawWreck(sled.position.x + 70, GROUND_Y, overT);          // Larry wiped out
   }
   drawParticles();
   drawPowerGauge();
