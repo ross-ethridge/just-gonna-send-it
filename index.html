@@ -104,13 +104,13 @@ RAMP.topY = GROUND_Y - RAMP.R * (1 - Math.cos(RAMP.theta));
 const LIP = { x: RAMP.x1, y: RAMP.topY };               // takeoff point
 // Ramp→castle distance, PER LEVEL (the ~71 mph arc lands ~3220; towers sit in its steep
 // descent zone so the sled drops INTO them rather than cresting over). Tune each level here.
-const LEVEL_X = [3050, 3050, 3050, 3050, 3050, 3050];   // the (single, static) tower's distance — sits in the launch arc's reach
+const LEVEL_X = [3250, 3250, 3250, 3250, 3250, 3250];   // centre of the reachable band; towers spread ±~360 around it so each needs its own power
 const canX = () => LEVEL_X[level];
 const LAUNCH_EFF = 0.72;                                // measured: lip speed ≈ 0.72 × launch (ramp loss)
 
 // Tunables (real scale: 11.2 px/ft, g≈0.10/step². 60 mph ≈ 16.4 px/step; full pull ≈ 66 mph)
 const POWER = 0.05;            // drag -> launch speed
-const MAX_DRAG = 390;          // full send ~72 mph — fast & punchy, plows clean through the broad keeps
+const MAX_DRAG = 390;          // full send ~71 mph — reaches the FAR towers; near ones need a softer pull (that's the aim)
 
 // Point on the ramp surface for arc parameter phi (0..theta)
 function rampSurface(phi) {
@@ -161,70 +161,24 @@ const treeXs = [80, 560, 1050, 1500, 1850, 2400];
 function makeSled() {
   const b = Bodies.rectangle(ANCHOR.x, ANCHOR.y, 112, 34, {
     label: 'sled', density: 0.006, friction: 0.004, frictionAir: 0.0006,
-    restitution: 0.04, chamfer: { radius: 10 }     // moderate mass: topples the tower it hits without bulldozing the whole level
+    restitution: 0, chamfer: { radius: 10 }     // mass tuned to topple ONE tower without bulldozing the whole row
   });
   Body.setStatic(b, true);
   Composite.add(world, b);
   return b;
 }
 
-// ---- Level structures. B=addBlock(x,y,w,h)  C=addCan(x,baseY)  G=ground  ch=can h  X=centre ----
-// ---- Angry-Birds kit: wooden STICK posts hold up BOARD beams; beer cans = elevated targets ----
-const PSPAN = 46;                                  // half-gap between a tier's two posts
-function post(B, cx, baseY, h, o) { B(cx, baseY - h/2, 19, h, 0, o); return baseY - h; }  // wooden support stick
-function stonePost(B, cx, baseY, h) { B(cx, baseY - h/2, 22, h, 0, {mat:'stone'}); return baseY - h; } // immovable stone pillar
-function beam(B, cx, topY, w, o) { B(cx, topY - 7, w, 14, 0, o); return topY - 14; }       // board, returns its top
-// A tower: tiers of [two stick posts + a board], with beer-can targets perched on each platform.
-// Nothing sits on the ground (ground cans can't be toppled). topCans=false leaves the roof bare for a bridge.
-const STONE_H = 56;       // short immovable stone footing (so a ground-scrape can't auto-win)
-const PH = 92;            // wood tier height — towers are BIG so launches connect easily
-// tiers = number of destructible WOOD tiers stacked on the stone footing. Cans ride the
-// footing AND every wood platform, so the can targets span a tall range = easy to clip = fun.
-function abTower(B, C, G, ch, X, tiers, topCans=true) {
-  let y = G;
-  stonePost(B, X - PSPAN, y, STONE_H);               // immovable footing, no win by plowing it
-  stonePost(B, X + PSPAN, y, STONE_H);
-  y = beam(B, X, y - STONE_H, PSPAN*2 + 54);
-  C(X - 24, y); C(X + 24, y);                         // low cans on the footing beam
-  for (let t = 0; t < tiers; t++) {
-    post(B, X - PSPAN, y, PH);
-    post(B, X + PSPAN, y, PH);
-    y = beam(B, X, y - PH, PSPAN*2 + 54);
-    if (t < tiers - 1 || topCans) { C(X - 24, y); C(X + 24, y); }   // elevated can targets
-  }
-  return y;
-}
-// A board bridging the bare tops of towers, with cans riding on it (all elevated)
-function span(B, C, x1, x2, y) {
-  const cx = (x1 + x2) / 2, top = beam(B, cx, y, Math.abs(x2 - x1) + 90);
-  C(x1 + (x2-x1)*0.3, top); C(cx, top); C(x1 + (x2-x1)*0.7, top);
-  return top;
-}
-// A wide battlement crown on top of a single tower: a broad board with three cans across it.
-function crown(B, C, X, y) {
-  const top = beam(B, X, y, 168);
-  C(X - 52, top); C(X, top); C(X + 52, top);
-  return top;
-}
-// A BROAD fortress tower: a WIDE two-post stance (very stable — no rocking middle post),
-// broad boards, three cans per platform.
-const WSPAN = 72;
-function wideTower(B, C, G, ch, X, tiers, topCans=true) {
-  let y = G;
-  stonePost(B, X-WSPAN, y, STONE_H); stonePost(B, X+WSPAN, y, STONE_H);
-  y = beam(B, X, y - STONE_H, WSPAN*2 + 40);
-  C(X-46, y); C(X, y); C(X+46, y);
-  for (let t = 0; t < tiers; t++) {
-    post(B, X-WSPAN, y, PH); post(B, X+WSPAN, y, PH);
-    y = beam(B, X, y - PH, WSPAN*2 + 40);
-    if (t < tiers - 1 || topCans) { C(X-46, y); C(X, y); C(X+46, y); }
-  }
-  return y;
-}
+// ---- Level structures. B=addBlock(x,y,w,h,ang,opts)  C=addCan(x,baseY)  G=ground  X=centre ----
+function post(B, cx, baseY, h, o) { B(cx, baseY - h/2, 19, h, 0, o); return baseY - h; }   // plank (dynamic unless o.fixed)
+function stonePost(B, cx, baseY, h) { B(cx, baseY - h/2, 22, h, 0, {mat:'stone'}); return baseY - h; } // immovable stone footing
+function beam(B, cx, topY, w, o) { B(cx, topY - 7, w, 14, 0, o); return topY - 14; }        // board, returns its top
+const STONE_H = 56;       // short immovable stone footing height (so a ground-scrape can't auto-win)
+const PH = 92;            // plank/floor height of a tower cell
 // ---- Angry-Birds-style stacked-plank towers (DYNAMIC: they topple & scatter when hit) ----
 // A stack of open "cells" (two planks + a board): beers perch on the roof and a couple inside.
 // Knock the tower over and the beers tumble. Several spread towers per level, so one shot
 // topples ~one tower and you chip the rest down over a few shots.
+const METAL = { mat: 'metal' };                   // heavy red construction beam
 function tower(B, C, X, G, floors, hw) {
   let y = G;
   stonePost(B, X-hw, y, STONE_H); stonePost(B, X+hw, y, STONE_H);   // immovable footing (can't win by plowing the base)
@@ -232,33 +186,34 @@ function tower(B, C, X, G, floors, hw) {
   for (let f = 0; f < floors; f++) {
     if (f % 2 === 0) C(X, y);                   // a beer boxed inside every other floor
     post(B, X-hw, y, PH); post(B, X+hw, y, PH);
-    y = beam(B, X, y - PH, hw*2 + 28);
+    // every other ceiling is a heavy red METAL beam — when the tower goes, it slams down on the beer below
+    y = beam(B, X, y - PH, hw*2 + 28, (f % 2 === 1) ? METAL : undefined);
   }
   C(X, y);                                       // a beer on the roof
   return y;
 }
-// a board platform bridging two towers' tops, with a beer or two riding it
+// a board platform bridging two towers' tops, with a beer or two riding it (a heavy metal girder)
 function deck(B, C, x1, x2, y, n=2) {
-  const cx=(x1+x2)/2, w=Math.abs(x2-x1), top=beam(B,cx,y,w+80);
+  const cx=(x1+x2)/2, w=Math.abs(x2-x1), top=beam(B,cx,y,w+80,METAL);
   for (let i=0;i<n;i++) C(x1 + (x2-x1)*(i+1)/(n+1), top);
   return top;
 }
-// Spread Angry-Birds skylines — towers of varied height, some joined by plank decks. Dynamic:
-// a hit topples the tower it strikes and scatters its beers; you work across the level over
-// several shots (more / wider structures = harder).
+// Angry-Birds skylines of SEPARATE towers spread across the reachable band. A near tower needs
+// a soft pull, a far one a full send, so each tower is its own aimed shot — you can't sweep the
+// whole level in one go. Towers topple & scatter (metal ceiling beams crash onto the beers below).
 const LEVELS = [
-  // 1 — one little tower (warm-up)
+  // 1 — one tower (warm-up)
   (B,C,G,ch,X) => tower(B,C,X,G,3,40),
-  // 2 — two towers with a gap
-  (B,C,G,ch,X) => { tower(B,C,X-140,G,3,38); tower(B,C,X+140,G,4,38); },
-  // 3 — two towers joined by a plank deck (beers up high)
-  (B,C,G,ch,X) => { const y=tower(B,C,X-125,G,3,38); tower(B,C,X+125,G,3,38); deck(B,C,X-125,X+125,y); },
-  // 4 — three towers, tall one in the middle
-  (B,C,G,ch,X) => { tower(B,C,X-205,G,3,38); tower(B,C,X,G,5,40); tower(B,C,X+205,G,3,38); },
-  // 5 — a fortress: flanking towers decked together, a stubby one out front
-  (B,C,G,ch,X) => { const a=X-185,b=X+185; const y=tower(B,C,a,G,4,40); tower(B,C,b,G,4,40); deck(B,C,a,b,y,3); tower(B,C,X,G,2,34); },
-  // 6 — big fortress: three towers, two decks
-  (B,C,G,ch,X) => { const a=X-225,b=X,c=X+225; const y=tower(B,C,a,G,4,40); tower(B,C,b,G,5,40); tower(B,C,c,G,4,40); deck(B,C,a,b,y,2); deck(B,C,b,c,y,2); },
+  // 2 — a near tower + a far tower
+  (B,C,G,ch,X) => { tower(B,C,X-230,G,3,38); tower(B,C,X+230,G,4,38); },
+  // 3 — two spread, taller
+  (B,C,G,ch,X) => { tower(B,C,X-235,G,4,38); tower(B,C,X+235,G,3,38); },
+  // 4 — three spread across the band
+  (B,C,G,ch,X) => { tower(B,C,X-345,G,3,38); tower(B,C,X,G,5,40); tower(B,C,X+345,G,3,38); },
+  // 5 — three spread, varied heights
+  (B,C,G,ch,X) => { tower(B,C,X-345,G,4,38); tower(B,C,X,G,3,38); tower(B,C,X+345,G,5,40); },
+  // 6 — three wide towers (the full spread)
+  (B,C,G,ch,X) => { tower(B,C,X-360,G,4,38); tower(B,C,X,G,5,40); tower(B,C,X+360,G,4,38); },
 ];
 
 function buildLevel() {
@@ -291,8 +246,9 @@ function buildLevel() {
   // ---- Destructible structure: wooden supports with cans perched to cascade ----
   const cw = 38, ch = 70, G = GROUND_Y;
   const addBlock = (x, y, w, h, ang=0, opts={}) => {
-    const fixed = opts.mat === 'stone' || opts.fixed;     // scaffolding is STATIC: it never topples (you chip cans off it over several sends), but the sled still collides with it
-    const b = Bodies.rectangle(x, y, w, h, { label:'block', density:0.0018, angle:ang,
+    const fixed = opts.mat === 'stone' || opts.fixed;     // stone footing is STATIC; everything else falls
+    const metal = opts.mat === 'metal';                   // heavy red construction beam — crushes what's below when it drops
+    const b = Bodies.rectangle(x, y, w, h, { label:'block', density: metal ? 0.0028 : 0.0018, angle:ang,
       isStatic: fixed, friction:0.98, frictionStatic:9, restitution:0, chamfer:{ radius:2 } });
     b.w = w; b.h = h; b.mat = opts.mat || 'wood';
     blocks.push(b); Composite.add(world, b); return b;
@@ -877,6 +833,16 @@ function drawBlock(b) {
       ctx.fillStyle='rgba(255,255,255,.22)'; ctx.fillRect(-w/2+3,-h/2+4,4,h-8);
       return;
     }
+    if (b.mat === 'metal') {                                   // heavy RED construction girder
+      ctx.beginPath(); rr(-w/2,-h/2,w,h,3); fillOutline('#d8352b', 3);
+      ctx.fillStyle='rgba(255,255,255,.28)'; ctx.fillRect(-w/2+2,-h/2+2,w-4,3);    // top highlight
+      ctx.fillStyle='rgba(0,0,0,.22)';       ctx.fillRect(-w/2+2, h/2-5,w-4,3);    // bottom shade (I-beam flange)
+      ctx.fillStyle='#3a1410';                                                     // rivets along the beam
+      const along = (w>=h), n = Math.max(2, Math.floor((along?w:h)/16));
+      for (let i=0;i<n;i++){ const t=-((along?w:h)/2)+8 + i*((along?w:h)-16)/(n-1||1);
+        ctx.beginPath(); ctx.arc(along?t:0, along?0:t, 1.7, 0, Math.PI*2); ctx.fill(); }
+      return;
+    }
     // ---- wobbly candy-cane board: a curved banana bar with diagonal stripes ----
     const col = PAL[b.id % PAL.length];
     const bow = ((b.id % 7) - 3)/3 * (5 + Math.min(w,h)*0.7);   // each board bends a different way
@@ -970,6 +936,12 @@ function physicsStep() {
     prevAirborne = airborne;
   }
   Engine.update(engine, STEP);
+  // ground brake: AFTER it has flown (launchBoosted) and dropped back near the snow, scrub its
+  // slide/spin so it doesn't skate forever. Gated on launchBoosted so it never brakes the runway launch.
+  if (launchBoosted && state === 'fly' && !celebrating && sled.position.y > GROUND_Y - 44) {
+    Body.setVelocity(sled, { x: sled.velocity.x * 0.86, y: sled.velocity.y });
+    Body.setAngularVelocity(sled, sled.angularVelocity * 0.85);
+  }
   checkCans();
   // transition beat: after the last can falls, let the sled finish flying & settle,
   // then Larry hops off. (Hold off respawn so he doesn't get teleported back to the start.)

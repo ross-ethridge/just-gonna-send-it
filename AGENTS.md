@@ -64,13 +64,15 @@ knock them all down and clear the level. 6 levels, escalating towers.
 | `GROUND_Y` | VH−70 | ground line |
 | `ANCHOR` | x=200 | sled start — long runway before the kicker |
 | `RAMP` | x0=1020, R=400, θ=0.73 | kicker arc (~42°, lip ~9 ft up at x≈1287); **big R = long, gentle curve → smooth glide up** (built from `N=30` overlapping segments). Bigger R also lengthens range, so it's paired with the `CANS_X` below. |
-| `LEVEL_X[]` | all 3050 | **per-level** ramp→structure distance (`canX()`). All levels share one cluster centre in the reachable band; towers spread ±~225 around it. |
+| `LEVEL_X[]` | all 3250 | `canX()`; the **centre of the reachable band**. Towers are spread ±~360 around it so a near tower needs a soft pull and a far one a full send — each tower is its own aimed shot. |
 | `LAUNCH_EFF` | 0.72 | measured ramp speed loss; used for the trajectory preview |
 | `POWER` | 0.05 | dragDist → launch speed |
-| `MAX_DRAG` | 390 | max pull-back — full send ≈ **71 mph** |
+| `MAX_DRAG` | 390 | max pull-back — full send ≈ **71 mph** (reaches the far tower; near ones use less) |
 | `STONE_H` | 56 | immovable stone **footing** height under each tower (anti-cheat: can't win by plowing the base) |
 | `PH` | 92 | plank/floor height of a tower cell |
-| sled `density` | 0.006 | moderate mass — topples the tower it hits **without bulldozing the whole row** (was 0.010) |
+| sled `density` | 0.006 | moderate mass — topples the tower it hits **without bulldozing the row** |
+| block `density` | 0.0018 wood / **0.0028 metal** | metal beams are heavier so they crash down on the beers below |
+| **ground brake** | — | in `physicsStep`, once `launchBoosted` and the sled is back near the ground, `velocity.x *= 0.86` / `angularVelocity *= 0.85` so it doesn't skate forever (gated on `launchBoosted` so it NEVER brakes the runway launch). Sled `restitution: 0` (no bounce). |
 | `engine.gravity.y` | 0.364 | ≈ real g at the chosen scale (set in `buildLevel`) |
 
 **Scale & calibration (don't guess — these were measured):** 11.2 px/ft (sled ≈ 10 ft = 112
@@ -113,18 +115,20 @@ Builder helpers take `B=addBlock(x,y,w,h,ang,opts)` and `C=addCan(x,baseY)`. `ad
 `opts.mat==='stone'` **or** `opts.fixed` → a STATIC block; `post`/`beam` take an optional opts
 arg to pass that through (currently only the stone footing is static).
 
-**Active builders (only these two are used):**
+**Active builder (`tower`):**
 - **`tower(B,C,X,G,floors,hw)`** — a DYNAMIC Angry-Birds tower: a short immovable **stone
   footing** (anti-cheat) + `floors` stacked open "cells" (two dynamic planks at ±`hw` + a board
-  on top). A beer is boxed inside every other floor + one on the roof. Returns top y. Topples &
-  scatters when hit. Keep `floors ≤ ~6` and `hw ≈ 38–40` (taller/skinnier self-collapses on spawn).
-- **`deck(B,C,x1,x2,y,n)`** — a plank platform bridging two tower tops with `n` beers on it.
-- `post`/`stonePost`/`beam` are the primitives.
-- `LEVELS[]` — `LEVELS[level](addBlock, addCan, G, ch, canX())`. Current: spread towers of
-  varied height ± decks — L1 one `tower(3)`; L2 two; L3 two + a `deck`; L4 three (tall middle);
-  L5 two decked + a stub; L6 three + two decks. Counts 3,6,8,10,11,14 beers; heights ~38–57 ft.
-- **Dead code (unused, safe to delete):** `abTower`, `wideTower`, `crown`, `span`, `seussTower`,
-  `bulb`, `spire`, `link`, `boardPath`'s Seuss origins, `FX`.
+  on top). A beer is boxed inside every other floor + one on the roof; **every other ceiling is
+  a heavy red `METAL` beam** (`{mat:'metal'}` → drawn as a riveted red girder, falls & crushes
+  the beer below). Keep `floors ≤ ~6`, `hw ≈ 38–40` (taller/skinnier self-collapses on spawn).
+- `deck(B,C,...)` exists (a metal girder bridging two towers) but is **currently unused** —
+  decks connect towers so a hit cascades both, which fights the multi-shot design; avoid.
+- `LEVELS[]` — **SEPARATE towers spread ±~360 across the reachable band** (no decks): L1 one
+  tower; L2/L3 two (near + far); L4/L5/L6 three across the band. Counts 3–10; heights ~38–57 ft.
+  Spreading is what makes it multi-shot — a near tower needs a soft pull, a far one a full send,
+  so a single shot only topples ~one tower (clustering them lets one shot sweep the lot).
+- **Dead code (safe to delete):** `abTower`, `wideTower`, `crown`, `span`, `seussTower`, `bulb`,
+  `spire`, `link`, `FX`, and `deck` (unused).
 
 **Verify after any structure change** (drive `physicsStep()` in a tight loop): (1) **stable at
 spawn** — settle ~600 idle steps, 0 self-knock and block drift <~25 px; (2) **not a 1-hit
