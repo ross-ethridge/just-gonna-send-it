@@ -68,6 +68,7 @@ knock them all down and clear the level. 6 levels, escalating towers.
 | `LAUNCH_EFF` | 0.72 | measured ramp speed loss; used for the trajectory preview |
 | `POWER` | 0.05 | dragDist → launch speed |
 | `MAX_DRAG` | 390 | max pull-back — full send ≈ **71 mph** (reaches the far tower; near ones use less) |
+| **launch power = horsepower** | `MAX_DRAG` × `POWER` | ⭐ **This is THE lever for launch power/reach.** To make up speed lost to a longer runway (or to shift reach), just turn up the sled's "horsepower" here — do NOT fiddle with ground friction / "ice" / momentum hacks to compensate. (User's call: horsepower affects power; don't compensate with friction.) |
 | `STONE_H` | 56 | immovable stone **footing** height under each tower (anti-cheat: can't win by plowing the base) |
 | `PH` | 92 | plank/floor height of a tower cell |
 | sled `density` | 0.006 | moderate mass — topples the tower it hits **without bulldozing the row** |
