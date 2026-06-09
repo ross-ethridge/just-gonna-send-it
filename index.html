@@ -805,32 +805,14 @@ function drawDabHead() {
   // orange shades peeking on the lower face (so you know it's Larry)
   ctx.beginPath(); rr(2,2,13,7,3); fillOutline('#ff9a3c',2.2);
 }
-const PAL = ['#ff5d8f','#ffd23f','#3ec6d6','#9b6bff','#ff8a3d','#4ecb71','#ff6f61']; // Seuss candy palette
-// A bowed, banana-curved board outline (not flat scaffolding) — bends along its long axis.
-function boardPath(w, h, bow) {
-  const hw = w/2, hh = h/2;
-  ctx.beginPath();
-  if (w >= h) {                          // horizontal board → bows vertically
-    ctx.moveTo(-hw, -hh);
-    ctx.quadraticCurveTo(0, -hh - bow, hw, -hh);
-    ctx.lineTo(hw, hh);
-    ctx.quadraticCurveTo(0, hh - bow, -hw, hh);
-  } else {                               // vertical post → bows sideways
-    ctx.moveTo(-hw, -hh);
-    ctx.quadraticCurveTo(-hw - bow, 0, -hw, hh);
-    ctx.lineTo(hw, hh);
-    ctx.quadraticCurveTo(hw - bow, 0, hw, -hh);
-  }
-  ctx.closePath();
-}
 function drawBlock(b) {
   local(b, () => {
     const w = b.w, h = b.h;
-    if (b.mat === 'stone') {                                   // immovable footing — a soft melty Dalí plinth
-      ctx.beginPath(); rr(-w/2,-h/2,w,h,7); fillOutline('#b9b3d6', 3);
-      ctx.strokeStyle = 'rgba(28,21,48,.22)'; ctx.lineWidth = 1.5;
-      for (let y=-h/2+12; y<h/2-4; y+=16){ ctx.beginPath(); ctx.moveTo(-w/2+3,y); ctx.lineTo(w/2-3,y); ctx.stroke(); }
-      ctx.fillStyle='rgba(255,255,255,.22)'; ctx.fillRect(-w/2+3,-h/2+4,4,h-8);
+    if (b.mat === 'stone') {                                   // immovable stone footing
+      ctx.beginPath(); rr(-w/2,-h/2,w,h,4); fillOutline('#9aa0a8', 3);
+      ctx.strokeStyle = 'rgba(28,21,48,.28)'; ctx.lineWidth = 1.5;
+      for (let y=-h/2+13; y<h/2-4; y+=15){ ctx.beginPath(); ctx.moveTo(-w/2+3,y); ctx.lineTo(w/2-3,y); ctx.stroke(); }
+      ctx.fillStyle='rgba(255,255,255,.2)'; ctx.fillRect(-w/2+3,-h/2+4,4,h-8);
       return;
     }
     if (b.mat === 'metal') {                                   // heavy RED construction girder
@@ -843,16 +825,12 @@ function drawBlock(b) {
         ctx.beginPath(); ctx.arc(along?t:0, along?0:t, 1.7, 0, Math.PI*2); ctx.fill(); }
       return;
     }
-    // ---- wobbly candy-cane board: a curved banana bar with diagonal stripes ----
-    const col = PAL[b.id % PAL.length];
-    const bow = ((b.id % 7) - 3)/3 * (5 + Math.min(w,h)*0.7);   // each board bends a different way
-    boardPath(w,h,bow); fillOutline(col, 3);
-    ctx.save(); boardPath(w,h,bow); ctx.clip();
-    ctx.strokeStyle = 'rgba(255,255,255,.6)'; const lw = Math.max(4, Math.min(w,h)*0.34); ctx.lineWidth = lw;
-    const reach = w + h;
-    for (let s = -reach; s < reach; s += lw*2) { ctx.beginPath(); ctx.moveTo(s - h, -h/2); ctx.lineTo(s + h, h/2); ctx.stroke(); }
-    ctx.restore();
-    boardPath(w,h,bow); ctx.lineWidth = 3; ctx.lineJoin='round'; ctx.strokeStyle = INK; ctx.stroke();
+    // ---- plain wooden plank (classic Angry-Birds): flat board, wood-brown, light grain ----
+    ctx.beginPath(); rr(-w/2,-h/2,w,h,3); fillOutline('#cf9b54', 3);
+    ctx.strokeStyle = 'rgba(120,72,28,.5)'; ctx.lineWidth = 1.4;
+    if (w >= h) { for (let yy=-h/2+5; yy<h/2-3; yy+=6){ ctx.beginPath(); ctx.moveTo(-w/2+4,yy); ctx.lineTo(w/2-4,yy); ctx.stroke(); } }
+    else        { for (let xx=-w/2+5; xx<w/2-3; xx+=6){ ctx.beginPath(); ctx.moveTo(xx,-h/2+4); ctx.lineTo(xx,h/2-4); ctx.stroke(); } }
+    ctx.fillStyle='rgba(255,255,255,.18)'; if (w>=h) ctx.fillRect(-w/2+4,-h/2+3,w-8,2); else ctx.fillRect(-w/2+3,-h/2+4,2,h-8);
   });
 }
 function drawCan(can) {
