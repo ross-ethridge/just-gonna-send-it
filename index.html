@@ -94,7 +94,7 @@ const VW = 1280, VH = 720;        // visible camera size
 const WORLD_W = 4800;             // total level width (long run-out for the side-scroll)
 const GROUND_Y = VH - 70;
 
-const ANCHOR = { x: 200, y: GROUND_Y - 18 };          // sled start (long runway before the kicker)
+const ANCHOR = { x: -380, y: GROUND_Y - 18 };         // sled start — ~100 ft of snowy runway before the kicker foot (x0=720) so the jet flame gets a real run-up
 // Kicker launcher = a steep concave arc that flings the sled into a big spinning
 // backflip jump. (A truly rideable loop traps the sled in 2D physics, so the crazy
 // flips come from a steep kicker + mid-air rotation control instead.)
@@ -251,7 +251,7 @@ function buildLevel() {
   cam.x = 0; cam.y = 0;
   winEl.classList.remove('show', 'over');
 
-  const ground = Bodies.rectangle(WORLD_W/2, GROUND_Y + 80, WORLD_W + 600, 160,
+  const ground = Bodies.rectangle(WORLD_W/2, GROUND_Y + 80, WORLD_W + 3600, 160,   // extra-wide so the long left-side runway has solid snow under it
     { isStatic: true, label: 'ground', friction: 0.008 });
   // ---- Ramp: overlapping segments laid along the surface polyline (smooth, no steps) ----
   const segs = [], T = 72;
@@ -525,8 +525,8 @@ function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 function stepCamera() {
   let tx = (state === 'aim')                         // in aim, sit the sled ~45% across for pull-back room
     ? sled.position.x - VW*0.45
-    : clamp(sled.position.x - VW*0.32, 0, WORLD_W - VW);
-  tx = clamp(tx, -520, WORLD_W - VW);
+    : clamp(sled.position.x - VW*0.32, -1150, WORLD_W - VW);
+  tx = clamp(tx, -1150, WORLD_W - VW);
   const ty = clamp(sled.position.y - VH*0.62, -360, 0);
   cam.x += (tx - cam.x) * 0.09;
   cam.y += (ty - cam.y) * 0.09;
@@ -543,7 +543,7 @@ function sceneSettled() {
 // ---- Respawn after the whole scene settles or the sled leaves the world ----
 function maybeRespawn(dt) {
   if (state !== 'fly') return;
-  const off = sled.position.x > WORLD_W+300 || sled.position.x < -300 || sled.position.y > VH+400;
+  const off = sled.position.x > WORLD_W+300 || sled.position.x < ANCHOR.x - 200 || sled.position.y > VH+400;
   restT = sceneSettled() ? restT + dt : 0;       // only count rest once nothing is still wobbling
   if (off || restT > 700) {
     if (shots >= MAX_TRIES && score < cans.length) { startGameOver(); return; }   // out of tries, level not cleared
@@ -622,14 +622,14 @@ function drawTractor(x, sc){ ctx.save(); ctx.translate(x, GROUND_Y); ctx.scale(s
   ctx.restore(); }
 // junk only on the APPROACH (x < ramp foot) so it never blocks the targets/towers downrange
 const JUNK = [
-  {x:-300,t:0,sc:1.0,c:'#b0563f'}, {x:-140,t:2,sc:0.95}, {x:40,t:1,sc:1.0},
-  {x:250,t:0,sc:1.08,c:'#4a7a86'}, {x:430,t:1,sc:0.9}, {x:600,t:2,sc:1.0},
+  {x:-330,t:0,sc:1.0,c:'#b0563f'}, {x:-150,t:2,sc:0.95}, {x:10,t:1,sc:1.0}, {x:170,t:0,sc:1.05,c:'#4a7a86'},
+  {x:330,t:2,sc:0.92}, {x:470,t:1,sc:0.9}, {x:620,t:0,sc:1.0,c:'#7a8a52'},
 ];
 function drawJunk(){ for (const j of JUNK) { if (j.t===0) drawCar(j.x,j.sc,j.c); else if (j.t===1) drawMoto(j.x,j.sc); else drawTractor(j.x,j.sc); } }
 
 function ground() {
-  ctx.fillStyle='#fdfeff'; ctx.fillRect(-700, GROUND_Y, WORLD_W+1400, VH-GROUND_Y+300);
-  ctx.fillStyle='#eef5fb'; ctx.fillRect(-700, GROUND_Y, WORLD_W+1400, 6);
+  ctx.fillStyle='#fdfeff'; ctx.fillRect(-1900, GROUND_Y, WORLD_W+3800, VH-GROUND_Y+300);
+  ctx.fillStyle='#eef5fb'; ctx.fillRect(-1900, GROUND_Y, WORLD_W+3800, 6);
 }
 function drawRamp() {
   const { x1, topY, pts } = RAMP;
@@ -1013,6 +1013,11 @@ function physicsStep() {
     prevAirborne = airborne;
   }
   Engine.update(engine, STEP);
+  // icy runway: while gunning it across the flats toward the kicker foot, cancel air drag so the
+  // long ~100 ft run-up keeps its launch speed (momentum on ice) instead of bleeding ~6 mph.
+  if (state === 'fly' && !launchBoosted && sled.position.x < RAMP.x0 && sled.position.y > GROUND_Y - 40 && sled.velocity.x > 0) {
+    Body.setVelocity(sled, { x: sled.velocity.x / 0.99940, y: sled.velocity.y });
+  }
   // ground brake: AFTER it has flown (launchBoosted) and dropped back near the snow, scrub its
   // slide/spin so it doesn't skate forever. Gated on launchBoosted so it never brakes the runway launch.
   if (launchBoosted && state === 'fly' && !celebrating && sled.position.y > GROUND_Y - 44) {
