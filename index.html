@@ -151,7 +151,7 @@ function toWorld(e) {
 }
 
 // ---- State ----
-let engine, world, sled, cans = [], blocks = [], burstP = [];
+let engine, world, sled, cans = [], blocks = [], burstP = [], tossedCan = null;
 let state = 'aim';                       // 'aim' | 'fly'
 let score = 0, shots = 0, dragWorld = null, dragging = false, restT = 0, launchBoosted = false, level = 0;
 let celebrating = false, celebrateBig = false, celebrateT = 0, prevAirborne = false;
@@ -245,7 +245,7 @@ function buildLevel() {
   engine = Engine.create();
   engine.gravity.y = 0.364;        // ≈ real gravity at ~11 px/ft scale (snowmobile ≈ 10 ft)
   world = engine.world;
-  cans = []; blocks = []; burstP = [];
+  cans = []; blocks = []; burstP = []; tossedCan = null;
   score = 0; shots = 0; state = 'aim'; dragging = false; dragWorld = null; restT = 0;
   celebrating = false; winPending = false; winT = 0; gameOver = false; overT = 0;
   cam.x = 0; cam.y = 0;
@@ -316,6 +316,8 @@ function endDrag() {
   Body.setVelocity(sled, { x: speed, y: 0 });          // gun it straight down the flats
   Body.setAngularVelocity(sled, 0);
   state = 'fly'; shots++; restT = 0; dragWorld = null; launchBoosted = false;
+  // chuck the beer back over his shoulder — it keeps a little of his speed but he rockets ahead of it
+  tossedCan = { x: sled.position.x - 12, y: sled.position.y - 46, vx: speed*0.3 - 2, vy: -8.5, rot: 0, vrot: 0.4, life: 1 };
   sndRev();
   updateHud();
 }
@@ -501,6 +503,20 @@ function sndFail(){                           // sad trombone: womp-womp-womp-wo
 }
 function stepParticles(){ for(const p of burstP){p.x+=p.vx;p.y+=p.vy;p.vy+=0.18;p.life-=0.022;}
   burstP = burstP.filter(p=>p.life>0); }
+function stepTossedCan(){
+  const c = tossedCan; if(!c) return;
+  c.x += c.vx; c.y += c.vy; c.vy += 0.36; c.rot += c.vrot;          // tumble + gravity
+  if (c.y > GROUND_Y - 7){ c.y = GROUND_Y - 7; c.vy *= -0.42; c.vx *= 0.6; c.vrot *= 0.5; c.life -= 0.05; }  // bounce on the snow, then fade
+  else c.life -= 0.004;
+  if (c.life <= 0) tossedCan = null;
+}
+function drawTossedCan(){
+  const c = tossedCan; if(!c) return;
+  ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, c.life)); ctx.translate(c.x, c.y); ctx.rotate(c.rot);
+  ctx.beginPath(); rr(-6,-11,12,22,3); fillOutline('#ffd23a',2.5);
+  ctx.fillStyle='#fff'; ctx.fillRect(-6,-3,12,8); ctx.fillStyle='#e23b54'; ctx.fillRect(-6,-1,12,3);
+  ctx.restore(); ctx.globalAlpha=1;
+}
 function stepSnow(){ for(const f of snow){ f.y+=f.s; f.x+=f.drift;
   if(f.y>VH){f.y=-4;f.x=Math.random()*VW;} if(f.x<0)f.x+=VW; if(f.x>VW)f.x-=VW; } }
 
@@ -640,6 +656,20 @@ const INK = '#1c1530';
 function fillOutline(fill, lw) { ctx.fillStyle = fill; ctx.fill(); ctx.lineJoin='round'; ctx.lineCap='round'; ctx.strokeStyle = INK; ctx.lineWidth = lw||3; ctx.stroke(); }
 function drawSnowmobile(body) {
   local(body, () => {
+    // ---- big jet-engine exhaust: ignites on launch, burns until he hits the foot of the ramp ----
+    if (state === 'fly' && body.position.x < RAMP.x0) {
+      const t = performance.now();
+      const flick = 1 + 0.2*Math.sin(t*0.045) + 0.13*Math.sin(t*0.11) + Math.random()*0.12;
+      const L = 132 * flick, nx = -56;                              // flame length + nozzle (rear of sled)
+      ctx.save(); ctx.translate(0, 7);                              // exhaust sits at the rear-track height
+      const flame = (len, ry, col) => { ctx.fillStyle = col; ctx.beginPath();
+        ctx.moveTo(nx, -ry); ctx.quadraticCurveTo(nx-len*0.45, -ry*0.5, nx-len, 0);
+        ctx.quadraticCurveTo(nx-len*0.45, ry*0.5, nx, ry); ctx.closePath(); ctx.fill(); };
+      ctx.globalAlpha = 0.42; ctx.fillStyle = '#ff8a28';            // heat glow
+      ctx.beginPath(); ctx.ellipse(nx-L*0.45, 0, L*0.55, 23, 0, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
+      flame(L, 16, '#ff4d18'); flame(L*0.8, 12, '#ff9d2e'); flame(L*0.55, 8.5, '#ffd23a'); flame(L*0.3, 5, '#fff6d0');
+      ctx.restore();
+    }
     // ground shadow
     ctx.fillStyle='rgba(28,21,48,.12)'; ctx.beginPath(); ctx.ellipse(2,23,60,9,0,0,Math.PI*2); ctx.fill();
     // front ski (bold black with a flat highlight)
@@ -683,13 +713,7 @@ function drawRider() {
   ctx.beginPath(); ctx.moveTo(9,-1); ctx.lineTo(11,11); ctx.stroke();
   ctx.lineCap='round';
   if (state === 'fly') {
-    // ---- LAUNCH: on release he chucks the beer behind his head & grabs the bars, jetting off ----
-    ctx.save(); ctx.translate(-34,-42); ctx.rotate(-0.8);                            // tumbling beer, behind/above
-    ctx.beginPath(); rr(-6,-10,12,21,3); fillOutline('#ffd23a',2.4);
-    ctx.fillStyle='#fff'; ctx.fillRect(-6,-3,12,8); ctx.fillStyle='#e23b54'; ctx.fillRect(-6,-1,12,3);
-    ctx.restore();
-    ctx.strokeStyle='rgba(255,255,255,.6)'; ctx.lineWidth=2.5;                       // toss motion lines
-    ctx.beginPath(); ctx.moveTo(-22,-40); ctx.lineTo(-36,-47); ctx.moveTo(-20,-33); ctx.lineTo(-34,-38); ctx.stroke();
+    // ---- LAUNCH: he's already chucked the beer (it flies off on its own) — both hands on the bars, jetting off ----
     ctx.strokeStyle=INK; ctx.lineWidth=12; ctx.beginPath(); ctx.moveTo(8,-6); ctx.lineTo(33,9); ctx.moveTo(2,-2); ctx.lineTo(33,11); ctx.stroke();
     ctx.strokeStyle='#7ba6da'; ctx.lineWidth=9; ctx.beginPath(); ctx.moveTo(8,-6); ctx.lineTo(33,9); ctx.moveTo(2,-2); ctx.lineTo(33,11); ctx.stroke();
     ctx.beginPath(); ctx.arc(34,10,5,0,Math.PI*2); fillOutline('#ffd0a0',2.5);       // both hands on the bar
@@ -1022,7 +1046,7 @@ function loop(now) {
     if (celebrateBig && Math.random() < 0.22) confetti(cam.x + Math.random()*VW, cam.y + Math.random()*VH*0.5, 14);
   }
   if (gameOver) overT += frame;
-  stepParticles(); stepSnow(); stepCamera();
+  stepParticles(); stepTossedCan(); stepSnow(); stepCamera();
 
   // clear full backing (letterbox bars)
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
@@ -1052,6 +1076,7 @@ function loop(now) {
     drawCrowd(sled.position.x + 70, GROUND_Y, overT, false);   // crowd looking on, disappointed
     drawWreck(sled.position.x + 70, GROUND_Y, overT);          // Larry wiped out
   }
+  drawTossedCan();
   drawParticles();
   drawPowerGauge();
   ctx.restore();
