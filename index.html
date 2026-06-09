@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Just Gonna Send It</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b1a2b; overflow: hidden;
+    font-family: system-ui, sans-serif; user-select: none; }
+  #wrap { position: relative; width: 100vw; height: 100vh; }
+  canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+  canvas.dragging { cursor: grabbing; }
+  #hud { position: absolute; top: 14px; left: 18px; color: #fff;
+    text-shadow: 0 2px 5px rgba(0,0,0,.55); pointer-events: none; }
+  #hud h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: 1px; font-weight: 800; }
+  #hud .stat { font-size: 15px; opacity: .95; }
+  #help { position: absolute; bottom: 14px; left: 18px; color: #eaf4ff;
+    font-size: 13px; opacity: .85; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+  #restart, #restartgame { position: absolute; top: 14px; color: #fff;
+    background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.35);
+    border-radius: 8px; padding: 8px 14px; font-size: 14px; cursor: pointer; }
+  #restart { right: 18px; }
+  #restartgame { right: 150px; }
+  #restart:hover, #restartgame:hover { background: rgba(255,255,255,.26); }
+  #win { position: absolute; inset: 0; display: none; align-items: center;
+    justify-content: center; flex-direction: column; color: #fff;
+    background: rgba(10,25,45,.55); pointer-events: none; }
+  #win.show { display: flex; }
+  #win .big { font-size: 64px; font-weight: 900; letter-spacing: 2px;
+    text-shadow: 0 4px 16px rgba(0,0,0,.5); }
+  #win .sub { font-size: 20px; margin-top: 8px; opacity: .9; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div id="hud">
+    <h1>🏔️ JUST GONNA SEND IT</h1>
+    <div class="stat">Level <span id="level">1</span> / <span id="levels">6</span></div>
+    <div class="stat">Cans down: <span id="score">0</span> / <span id="total">0</span></div>
+    <div class="stat">Launches: <span id="shots">0</span></div>
+  </div>
+  <div id="help">Drag back &amp; release to send it off the kicker • ◄ ► / A,D to flip &amp; level out mid-air • R resets • M mutes</div>
+  <button id="restartgame">⟲ Reset game</button>
+  <button id="restart">↻ Retry level</button>
+  <div id="win"><div class="big">SENT IT! 🎉</div><div class="sub" id="winsub"></div></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
+<script>
+const { Engine, Bodies, Body, Composite, Vector, Query } = Matter;
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const totalEl = document.getElementById('total');
+const shotsEl  = document.getElementById('shots');
+const levelEl = document.getElementById('level');
+const winEl = document.getElementById('win');
+const winSub = document.getElementById('winsub');
+const winBig = document.querySelector('#win .big');
+
+// Viewport (game units) and the wider scrolling world
+const VW = 1280, VH = 720;        // visible camera size
+const WORLD_W = 4800;             // total level width (long run-out for the side-scroll)
+const GROUND_Y = VH - 70;
+
+const ANCHOR = { x: 200, y: GROUND_Y - 18 };          // sled start (long runway before the kicker)
+// Kicker launcher = a steep concave arc that flings the sled into a big spinning
+// backflip jump. (A truly rideable loop traps the sled in 2D physics, so the crazy
+// flips come from a steep kicker + mid-air rotation control instead.)
+const RAMP = { x0: 1020, R: 280, theta: 0.73 };         // ~42° kicker — near-max-range launch into the towers, big air for flips
+RAMP.x1   = RAMP.x0 + RAMP.R * Math.sin(RAMP.theta);
+RAMP.topY = GROUND_Y - RAMP.R * (1 - Math.cos(RAMP.theta));
+const LIP = { x: RAMP.x1, y: RAMP.topY };               // takeoff point
+const CANS_X = 2750;                                    // towers downrange, in the landing zone
+const LAUNCH_EFF = 0.72;                                // measured: lip speed ≈ 0.72 × launch (ramp loss)
+
+// Tunables (real scale: 11.2 px/ft, g≈0.10/step². 60 mph ≈ 16.4 px/step; full pull ≈ 66 mph)
+const POWER = 0.05;            // drag -> launch speed
+const MAX_DRAG = 333;          // capped so a full send tops out ~61 mph — lands in the demolition zone, CAN'T fly over
+
+// Point on the ramp surface for arc parameter phi (0..theta)
+function rampSurface(phi) {
+  return { x: RAMP.x0 + RAMP.R * Math.sin(phi),
+           y: GROUND_Y - RAMP.R * (1 - Math.cos(phi)) };
+}
+
+// Uniform-scale + letterbox so geometry never distorts on resize
+const view = { scale: 1, offX: 0, offY: 0, dpr: 1 };
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = window.innerWidth, cssH = window.innerHeight;
+  canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
+  canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
+  view.dpr = dpr;
+  view.scale = Math.min(cssW / VW, cssH / VH);       // uniform -> preserves aspect ratio
+  view.offX = (cssW - VW * view.scale) / 2;          // centre with letterbox bars
+  view.offY = (cssH - VH * view.scale) / 2;
+}
+window.addEventListener('resize', resize);
+
+// Screen pixel -> world coords (invert letterbox transform + camera scroll)
+function toWorld(e) {
+  const r = canvas.getBoundingClientRect();
+  const gx = (e.clientX - r.left - view.offX) / view.scale;
+  const gy = (e.clientY - r.top  - view.offY) / view.scale;
+  return { x: gx + cam.x, y: gy + cam.y };
+}
+
+// ---- State ----
+let engine, world, sled, cans = [], blocks = [], burstP = [];
+let state = 'aim';                       // 'aim' | 'fly'
+let score = 0, shots = 0, dragWorld = null, dragging = false, restT = 0, launchBoosted = false, level = 0;
+let celebrating = false, celebrateBig = false, celebrateT = 0, prevAirborne = false;
+let winPending = false, winT = 0;        // beat between the last can falling and Larry hopping off
+const cam = { x: 0, y: 0 };
+
+// Ambient falling snow (screen-space, cosmetic)
+const snow = Array.from({ length: 90 }, () => ({
+  x: Math.random()*VW, y: Math.random()*VH,
+  r: 1 + Math.random()*2.2, s: 0.4 + Math.random()*1.1, drift: Math.random()*0.6-0.3
+}));
+// World trees (scroll with the level)
+const treeXs = [80, 560, 1050, 1500, 1850, 2400];
+
+function makeSled() {
+  const b = Bodies.rectangle(ANCHOR.x, ANCHOR.y, 112, 34, {
+    label: 'sled', density: 0.0045, friction: 0.004, frictionAir: 0.0006,
+    restitution: 0.15, chamfer: { radius: 10 }
+  });
+  Body.setStatic(b, true);
+  Composite.add(world, b);
+  return b;
+}
+
+// ---- Level structures. B=addBlock(x,y,w,h)  C=addCan(x,baseY)  G=ground  ch=can h  X=centre ----
+// ---- Angry-Birds kit: wooden STICK posts hold up BOARD beams; beer cans = elevated targets ----
+const PSPAN = 46;                                  // half-gap between a tier's two posts
+function post(B, cx, baseY, h) { B(cx, baseY - h/2, 19, h); return baseY - h; }  // wooden support stick
+function stonePost(B, cx, baseY, h) { B(cx, baseY - h/2, 22, h, 0, {mat:'stone'}); return baseY - h; } // immovable stone pillar
+function beam(B, cx, topY, w) { B(cx, topY - 7, w, 14); return topY - 14; }       // board, returns its top
+// A tower: tiers of [two stick posts + a board], with beer-can targets perched on each platform.
+// Nothing sits on the ground (ground cans can't be toppled). topCans=false leaves the roof bare for a bridge.
+const STONE_H = 56;       // short immovable stone footing (so a ground-scrape can't auto-win)
+const PH = 92;            // wood tier height — towers are BIG so launches connect easily
+// tiers = number of destructible WOOD tiers stacked on the stone footing. Cans ride the
+// footing AND every wood platform, so the can targets span a tall range = easy to clip = fun.
+function abTower(B, C, G, ch, X, tiers, topCans=true) {
+  let y = G;
+  stonePost(B, X - PSPAN, y, STONE_H);               // immovable footing, no win by plowing it
+  stonePost(B, X + PSPAN, y, STONE_H);
+  y = beam(B, X, y - STONE_H, PSPAN*2 + 54);
+  C(X - 24, y); C(X + 24, y);                         // low cans on the footing beam
+  for (let t = 0; t < tiers; t++) {
+    post(B, X - PSPAN, y, PH);
+    post(B, X + PSPAN, y, PH);
+    y = beam(B, X, y - PH, PSPAN*2 + 54);
+    if (t < tiers - 1 || topCans) { C(X - 24, y); C(X + 24, y); }   // elevated can targets
+  }
+  return y;
+}
+// A board bridging the bare tops of towers, with cans riding on it (all elevated)
+function span(B, C, x1, x2, y) {
+  const cx = (x1 + x2) / 2, top = beam(B, cx, y, Math.abs(x2 - x1) + 90);
+  C(x1 + (x2-x1)*0.3, top); C(cx, top); C(x1 + (x2-x1)*0.7, top);
+  return top;
+}
+const LEVELS = [
+  (B,C,G,ch,X) => abTower(B,C,G,ch,X, 4),                                                                          // big single
+  (B,C,G,ch,X) => abTower(B,C,G,ch,X, 5),                                                                          // taller
+  (B,C,G,ch,X) => { const y=abTower(B,C,G,ch,X-110,4,false); abTower(B,C,G,ch,X+110,4,false); span(B,C,X-110,X+110,y); },
+  (B,C,G,ch,X) => abTower(B,C,G,ch,X, 6),                                                                          // tower of power
+  (B,C,G,ch,X) => { const y=abTower(B,C,G,ch,X-130,5,false); abTower(B,C,G,ch,X+130,5,false); span(B,C,X-130,X+130,y); },
+  (B,C,G,ch,X) => { const y=abTower(B,C,G,ch,X-180,5,false); abTower(B,C,G,ch,X,5,false); abTower(B,C,G,ch,X+180,5,false); span(B,C,X-180,X+180,y); },
+];
+
+function buildLevel() {
+  engine = Engine.create();
+  engine.gravity.y = 0.364;        // ≈ real gravity at ~11 px/ft scale (snowmobile ≈ 10 ft)
+  world = engine.world;
+  cans = []; blocks = []; burstP = [];
+  score = 0; shots = 0; state = 'aim'; dragging = false; dragWorld = null; restT = 0;
+  celebrating = false; winPending = false; winT = 0;
+  cam.x = 0; cam.y = 0;
+  winEl.classList.remove('show');
+
+  const ground = Bodies.rectangle(WORLD_W/2, GROUND_Y + 80, WORLD_W + 600, 160,
+    { isStatic: true, label: 'ground', friction: 0.008 });
+  // ---- Kicker arc launcher ----
+  const segs = [];
+  const N = 22;
+  for (let i = 0; i < N; i++) {
+    const phi = RAMP.theta * (i + 0.5) / N;
+    const P = rampSurface(phi);
+    const T = 64;
+    const cx = P.x + Math.sin(phi) * T/2;
+    const cy = P.y + Math.cos(phi) * T/2;
+    const L = (RAMP.R * RAMP.theta / N) * 1.9;
+    segs.push(Bodies.rectangle(cx, cy, L, T,
+      { isStatic: true, label: 'ramp', angle: -phi, friction: 0.008, restitution: 0 }));
+  }
+  Composite.add(world, [ground, ...segs]);
+
+  // ---- Destructible structure: wooden supports with cans perched to cascade ----
+  const cw = 38, ch = 70, G = GROUND_Y;
+  const addBlock = (x, y, w, h, ang=0, opts={}) => {
+    const stone = opts.mat === 'stone';
+    const b = Bodies.rectangle(x, y, w, h, { label:'block', density:0.0014, angle:ang,
+      isStatic: stone, friction:0.95, frictionStatic:6, restitution:0, chamfer:{ radius:2 } });
+    b.w = w; b.h = h; b.mat = opts.mat || 'wood';
+    blocks.push(b); Composite.add(world, b); return b;
+  };
+  const addCan = (x, baseY) => {
+    const c = Bodies.rectangle(x, baseY - ch/2, cw, ch, { label:'can', density:0.0010,
+      friction:0.9, frictionStatic:6, restitution:0, chamfer:{ radius:4 } });   // a touch light so they topple/scatter readily
+    c.knocked = false; c.hue = 40 + Math.random()*20;
+    c.ox = x; c.oy = baseY - ch/2;                    // remember start, to detect being shoved
+    cans.push(c); Composite.add(world, c); return c;
+  };
+  LEVELS[level](addBlock, addCan, G, ch, CANS_X);     // build this level's tower(s)
+  sled = makeSled();
+  totalEl.textContent = cans.length;
+  levelEl.textContent = level + 1;
+  updateHud();
+}
+function updateHud() { scoreEl.textContent = score; shotsEl.textContent = shots; }
+
+// ---- Input ----
+canvas.addEventListener('mousedown', e => startDrag(e));
+canvas.addEventListener('touchstart', e => { startDrag(e.touches[0]); e.preventDefault(); }, {passive:false});
+window.addEventListener('mousemove', e => moveDrag(e));
+window.addEventListener('touchmove', e => { if (dragging){ moveDrag(e.touches[0]); e.preventDefault(); } }, {passive:false});
+window.addEventListener('mouseup', endDrag);
+window.addEventListener('touchend', endDrag);
+
+function startDrag(e) {
+  if (state !== 'aim') return;
+  const p = toWorld(e);
+  if (Vector.magnitude(Vector.sub(p, sled.position)) < 160) {
+    dragging = true; dragWorld = p; canvas.classList.add('dragging');
+  }
+}
+function moveDrag(e) { if (dragging) dragWorld = toWorld(e); }
+function endDrag() {
+  if (!dragging) return;
+  dragging = false; canvas.classList.remove('dragging');
+  const dist = Vector.magnitude(Vector.sub(sled.position, dragWorld)); // drag in ANY direction
+  if (dist < 14) { dragWorld = null; return; }        // tiny drag cancels
+  const speed = Math.min(dist, MAX_DRAG) * POWER;
+  Body.setStatic(sled, false);
+  Body.setVelocity(sled, { x: speed, y: 0 });          // gun it straight down the flats
+  Body.setAngularVelocity(sled, 0);
+  state = 'fly'; shots++; restT = 0; dragWorld = null; launchBoosted = false;
+  sndRev();
+  updateHud();
+}
+document.getElementById('restart').addEventListener('click', buildLevel);
+document.getElementById('restartgame').addEventListener('click', () => { level = 0; buildLevel(); });
+// ---- Keyboard: R resets; arrows / A,D control rotation in the air ----
+const keys = { left: false, right: false };
+window.addEventListener('keydown', e => {
+  if (e.key === 'r' || e.key === 'R') buildLevel();
+  if (e.key === 'm' || e.key === 'M') { muted = !muted; if (muted) engineStop(); }
+  if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') { keys.left  = true; e.preventDefault(); }
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { keys.right = true; e.preventDefault(); }
+});
+window.addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') keys.left  = false;
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+});
+
+// ---- Scoring ----
+function angleOff(a){ let m = ((a % Math.PI)+Math.PI)%Math.PI; return Math.min(m, Math.PI-m); }
+function checkCans() {
+  for (const can of cans) {
+    if (can.knocked) continue;
+    const moved = Math.hypot(can.position.x - can.ox, can.position.y - can.oy);
+    if (angleOff(can.angle) > 0.4 || moved > 26) {     // tipped or clearly displaced (all cans are elevated now)
+      can.knocked = true; score++; burst(can.position.x, can.position.y); sndClatter(); updateHud();
+    }
+  }
+  if (score === cans.length && !celebrating && !winPending) {
+    // Last can down — DON'T celebrate yet. Let the sled finish its flight and the cans
+    // settle; the loop counts down winT and calls startCelebration() once the dust settles.
+    winPending = true; winT = 0;
+  }
+}
+function startCelebration() {
+  winPending = false;
+  const last = level >= LEVELS.length - 1;
+  winBig.textContent = last ? 'SENT IT ALL! 🍻' : 'SEND IT! 🍻';
+  winSub.textContent = last
+    ? `All ${LEVELS.length} levels cleared — absolute legend.`
+    : `Level ${level+1} cleared in ${shots} launch${shots===1?'':'es'}! Larry says cheers.`;
+  winEl.classList.add('show');
+  // ---- celebration: Larry hops off and cheers ----
+  engineStop();
+  celebrating = true; celebrateBig = last; celebrateT = 0;
+  Body.setStatic(sled, true); Body.setAngularVelocity(sled, 0); Body.setAngle(sled, 0);
+  Body.setPosition(sled, { x: sled.position.x, y: GROUND_Y - 18 });
+  confetti(sled.position.x, sled.position.y - 50, last ? 90 : 45);
+  sndAirhorn(); sndCrowd(last ? 4 : 2.4);
+  if (last) { setTimeout(sndAirhorn, 350); setTimeout(sndAirhorn, 700); }
+  setTimeout(() => { level = last ? 0 : level + 1; buildLevel(); }, last ? 5000 : 2900);
+}
+
+// ---- Particles ----
+function burst(x,y){ for(let i=0;i<16;i++){ const a=Math.random()*Math.PI*2, s=2+Math.random()*5;
+  burstP.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,c:Math.random()<.5?'#ffd34d':'#fff'});}}
+function spray(x,y){ for(let i=0;i<2;i++)
+  burstP.push({x,y,vx:(Math.random()-0.5)*4,vy:-Math.random()*4-1,life:1,c:'#fff'}); }
+const CONFETTI = ['#ff5fa6','#ffd23a','#34d1c2','#7b61ff','#ff7a3c','#52e36b','#ffffff'];
+function confetti(x,y,n){ for(let i=0;i<n;i++){ const a=Math.random()*Math.PI*2, s=3+Math.random()*8;
+  burstP.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-7,life:1,c:CONFETTI[(Math.random()*CONFETTI.length)|0]});}}
+
+// ---- Sound (Web Audio, all synthesized — no files) ----
+let actx = null, muted = false;
+function audio(){ if(!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(actx && actx.state==='suspended') actx.resume(); return actx; }
+['pointerdown','keydown','touchstart'].forEach(ev => window.addEventListener(ev, audio));
+function tone(freq, dur, type, gain, slideTo){
+  const a=audio(); if(!a||muted) return; const t=a.currentTime;
+  const o=a.createOscillator(), g=a.createGain();
+  o.type=type||'sine'; o.frequency.setValueAtTime(freq,t);
+  if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo,t+dur);
+  g.gain.setValueAtTime(gain||0.2,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t+dur);
+}
+function noiseBurst(dur, gain, hp){
+  const a=audio(); if(!a||muted) return; const t=a.currentTime;
+  const n=Math.floor(a.sampleRate*dur), buf=a.createBuffer(1,n,a.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=Math.random()*2-1;
+  const src=a.createBufferSource(); src.buffer=buf;
+  const f=a.createBiquadFilter(); f.type='highpass'; f.frequency.value=hp||1500;
+  const g=a.createGain(); g.gain.setValueAtTime(gain||0.2,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  src.connect(f).connect(g).connect(a.destination); src.start(t); src.stop(t+dur);
+}
+// Continuous snowmobile engine: a sawtooth drone with an RPM wobble (LFO) that runs the
+// whole flight; its pitch tracks the sled's speed (revs up fast, idles when slow).
+let engineNodes = null;
+function engineStart(){
+  const a=audio(); if(!a||muted||engineNodes) return; const t=a.currentTime;
+  const o=a.createOscillator(), g=a.createGain(), f=a.createBiquadFilter();
+  o.type='sawtooth'; o.frequency.setValueAtTime(120,t);
+  f.type='lowpass'; f.frequency.value=1300;
+  const lfo=a.createOscillator(), lfoG=a.createGain();      // RPM oscillation
+  lfo.type='sine'; lfo.frequency.value=11; lfoG.gain.value=30; lfo.connect(lfoG).connect(o.frequency);
+  g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(0.14,t+0.06);
+  o.connect(f).connect(g).connect(a.destination); o.start(t); lfo.start(t);
+  engineNodes={o,g,f,lfo,lfoG};
+}
+function engineRev(speed){                  // call each frame: pitch follows speed
+  if(!engineNodes) return; const a=audio(); if(!a) return;
+  engineNodes.o.frequency.setTargetAtTime(85 + Math.min(speed,42)*4.2, a.currentTime, 0.06);
+  engineNodes.lfo.frequency.setTargetAtTime(8 + Math.min(speed,42)*0.4, a.currentTime, 0.1);   // faster wobble when revving
+}
+function engineStop(){
+  if(!engineNodes) return; const a=audio(), t=a?a.currentTime:0;
+  try{ engineNodes.g.gain.cancelScheduledValues(t); engineNodes.g.gain.setTargetAtTime(0.0001,t,0.07);
+       engineNodes.o.stop(t+0.35); engineNodes.lfo.stop(t+0.35); }catch(e){}
+  engineNodes=null;
+}
+function sndRev(){                          // one-shot snowmobile rev on launch (with RPM wobble)
+  const a=audio(); if(!a||muted) return; const t=a.currentTime;
+  const o=a.createOscillator(), g=a.createGain(), f=a.createBiquadFilter();
+  o.type='sawtooth';
+  o.frequency.setValueAtTime(80,t); o.frequency.linearRampToValueAtTime(265,t+0.3); o.frequency.linearRampToValueAtTime(175,t+0.9);
+  f.type='lowpass'; f.frequency.value=1300;
+  const lfo=a.createOscillator(), lfoG=a.createGain(); lfo.type='sine'; lfo.frequency.value=22; lfoG.gain.value=42; lfo.connect(lfoG).connect(o.frequency);
+  g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(0.17,t+0.05); g.gain.setValueAtTime(0.17,t+0.55); g.gain.exponentialRampToValueAtTime(0.0001,t+0.9);
+  o.connect(f).connect(g).connect(a.destination); o.start(t); lfo.start(t); o.stop(t+0.9); lfo.stop(t+0.9);
+}
+let lastClatter = 0;
+function sndClatter(){                      // a can getting knocked (throttled for mass collapses)
+  const now = performance.now(); if (now - lastClatter < 28) return; lastClatter = now;
+  noiseBurst(0.07, 0.12, 1400+Math.random()*1600);
+  tone(420+Math.random()*520, 0.11, 'square', 0.05, 180);
+}
+function sndAirhorn(){                       // big celebration honk
+  tone(311, 0.55, 'square', 0.14);
+  tone(415, 0.55, 'square', 0.11);
+  tone(622, 0.55, 'sawtooth', 0.06);
+}
+function sndCrowd(dur){                       // a roaring crowd of Kennys (noise swell + whoops)
+  const a=audio(); if(!a||muted) return; const t=a.currentTime; dur=dur||2.2;
+  const n=Math.floor(a.sampleRate*dur), buf=a.createBuffer(1,n,a.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=Math.random()*2-1;
+  const src=a.createBufferSource(); src.buffer=buf;
+  const f=a.createBiquadFilter(); f.type='bandpass'; f.frequency.value=950; f.Q.value=0.7;
+  const g=a.createGain();
+  g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(0.2,t+0.3);
+  g.gain.setValueAtTime(0.2,t+dur*0.6); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  const lfo=a.createOscillator(), lfoG=a.createGain();   // "many voices" tremolo
+  lfo.type='sine'; lfo.frequency.value=7; lfoG.gain.value=0.06; lfo.connect(lfoG).connect(g.gain);
+  src.connect(f).connect(g).connect(a.destination); src.start(t); src.stop(t+dur); lfo.start(t); lfo.stop(t+dur);
+  for(let i=0;i<4;i++){ const ts=0.1+Math.random()*dur*0.7;                       // muffled whoops/whistles
+    setTimeout(()=>tone(1100+Math.random()*900, 0.18, 'sine', 0.05, 1700+Math.random()*600), ts*1000); }
+}
+function sndThud(){ noiseBurst(0.12,0.16,180); tone(95,0.16,'sine',0.14,55); }
+function stepParticles(){ for(const p of burstP){p.x+=p.vx;p.y+=p.vy;p.vy+=0.18;p.life-=0.022;}
+  burstP = burstP.filter(p=>p.life>0); }
+function stepSnow(){ for(const f of snow){ f.y+=f.s; f.x+=f.drift;
+  if(f.y>VH){f.y=-4;f.x=Math.random()*VW;} if(f.x<0)f.x+=VW; if(f.x>VW)f.x-=VW; } }
+
+// ---- Camera ----
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function stepCamera() {
+  let tx = (state === 'aim')                         // in aim, sit the sled ~45% across for pull-back room
+    ? sled.position.x - VW*0.45
+    : clamp(sled.position.x - VW*0.32, 0, WORLD_W - VW);
+  tx = clamp(tx, -520, WORLD_W - VW);
+  const ty = clamp(sled.position.y - VH*0.62, -360, 0);
+  cam.x += (tx - cam.x) * 0.09;
+  cam.y += (ty - cam.y) * 0.09;
+}
+
+// ---- Respawn after the sled settles or leaves the world ----
+function maybeRespawn(dt) {
+  if (state !== 'fly') return;
+  const off = sled.position.x > WORLD_W+300 || sled.position.x < -300 || sled.position.y > VH+400;
+  const slow = Vector.magnitude(sled.velocity) < 0.5 && Math.abs(sled.angularVelocity) < 0.04;
+  restT = slow ? restT + dt : 0;
+  if (off || restT > 900) { engineStop(); Composite.remove(world, sled); sled = makeSled(); state = 'aim'; }
+}
+
+// ================= RENDER =================
+function rr(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function local(body, draw){ ctx.save(); ctx.translate(body.position.x, body.position.y);
+  ctx.rotate(body.angle); draw(); ctx.restore(); }
+
+function sky() {
+  const g = ctx.createLinearGradient(0,0,0,VH);
+  g.addColorStop(0,'#8fc7ff'); g.addColorStop(.55,'#bfe2ff'); g.addColorStop(1,'#eaf6ff');
+  ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
+  const s = ctx.createRadialGradient(VW-220,130,10,VW-220,130,160);
+  s.addColorStop(0,'rgba(255,255,240,.9)'); s.addColorStop(1,'rgba(255,255,240,0)');
+  ctx.fillStyle=s; ctx.fillRect(VW-440,-40,440,360);
+}
+function mountains(baseY, col, par) {
+  ctx.save(); ctx.translate(-cam.x*par, -cam.y*par*0.5);
+  ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(-200, baseY);
+  const pts=[[60,baseY-120],[260,baseY-260],[460,baseY-90],[700,baseY-300],
+    [980,baseY-150],[1280,baseY-330],[1620,baseY-120],[2000,baseY-220]];
+  for(const [x,y] of pts) ctx.lineTo(x,y);
+  ctx.lineTo(2200, GROUND_Y+300); ctx.lineTo(-200, GROUND_Y+300); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.6)';
+  for(const [x,y] of pts){ ctx.beginPath(); ctx.moveTo(x,y);
+    ctx.lineTo(x-22,y+34); ctx.lineTo(x+22,y+34); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+}
+function tree(x, sc){ ctx.save(); ctx.translate(x, GROUND_Y); ctx.scale(sc,sc);
+  ctx.fillStyle='#6b4a2b'; ctx.fillRect(-5,-18,10,18); ctx.fillStyle='#2f6b46';
+  for(let i=0;i<3;i++){ const w=46-i*10,y=-18-i*26; ctx.beginPath();
+    ctx.moveTo(0,y-34); ctx.lineTo(-w,y); ctx.lineTo(w,y); ctx.closePath(); ctx.fill(); }
+  ctx.fillStyle='rgba(255,255,255,.85)';
+  for(let i=0;i<3;i++){ const w=46-i*10,y=-18-i*26; ctx.beginPath();
+    ctx.moveTo(0,y-34); ctx.lineTo(-w*0.5,y-12); ctx.lineTo(w*0.2,y-12); ctx.closePath(); ctx.fill(); }
+  ctx.restore(); }
+
+function ground() {
+  ctx.fillStyle='#fdfeff'; ctx.fillRect(-700, GROUND_Y, WORLD_W+1400, VH-GROUND_Y+300);
+  ctx.fillStyle='#eef5fb'; ctx.fillRect(-700, GROUND_Y, WORLD_W+1400, 6);
+}
+function drawRamp() {
+  const { x0, x1, topY } = RAMP, STEPS = 26;
+  const pts = []; for (let i=0;i<=STEPS;i++) pts.push(rampSurface(RAMP.theta*i/STEPS));
+  // solid wooden body under the curve
+  ctx.fillStyle = '#7a5230'; ctx.beginPath(); ctx.moveTo(x0, GROUND_Y);
+  for (const p of pts) ctx.lineTo(p.x, p.y);
+  ctx.lineTo(x1, GROUND_Y); ctx.closePath(); ctx.fill();
+  // plank lines on the vertical back face
+  ctx.strokeStyle = 'rgba(0,0,0,.15)'; ctx.lineWidth = 2;
+  for (let y = GROUND_Y - 18; y > topY + 8; y -= 18) { ctx.beginPath(); ctx.moveTo(x1-46, y); ctx.lineTo(x1, y); ctx.stroke(); }
+  // snowy curved surface
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 10; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); pts.forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.stroke();
+  // outline
+  ctx.strokeStyle = '#5c3d22'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x0, GROUND_Y);
+  for (const p of pts) ctx.lineTo(p.x, p.y);
+  ctx.lineTo(x1, GROUND_Y); ctx.stroke();
+}
+// Powerpuff-style: flat bold fills + clean black outlines + big eyes
+const INK = '#1c1530';
+function fillOutline(fill, lw) { ctx.fillStyle = fill; ctx.fill(); ctx.lineJoin='round'; ctx.lineCap='round'; ctx.strokeStyle = INK; ctx.lineWidth = lw||3; ctx.stroke(); }
+function drawSnowmobile(body) {
+  local(body, () => {
+    // ground shadow
+    ctx.fillStyle='rgba(28,21,48,.12)'; ctx.beginPath(); ctx.ellipse(2,23,60,9,0,0,Math.PI*2); ctx.fill();
+    // front ski (bold black with a flat highlight)
+    ctx.beginPath(); ctx.moveTo(16,23); ctx.lineTo(58,23); ctx.quadraticCurveTo(78,23,75,5);
+    ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle=INK; ctx.lineWidth=9; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(20,23); ctx.lineTo(58,23); ctx.strokeStyle='#5a5566'; ctx.lineWidth=3; ctx.stroke();
+    // rear track
+    ctx.beginPath(); rr(-62,3,56,21,9); fillOutline('#2c2740', 3);
+    ctx.strokeStyle='#544f63'; ctx.lineWidth=2.5;
+    for(let i=-54;i<-12;i+=9){ ctx.beginPath(); ctx.moveTo(i,6); ctx.lineTo(i,21); ctx.stroke(); }
+    // body — flat teal, chunky rounded cowl
+    ctx.beginPath();
+    ctx.moveTo(-54,8); ctx.lineTo(-54,-6);
+    ctx.quadraticCurveTo(-54,-18,-42,-18);
+    ctx.lineTo(12,-18); ctx.quadraticCurveTo(30,-18,40,-5);
+    ctx.lineTo(56,5); ctx.quadraticCurveTo(45,13,30,13);
+    ctx.lineTo(-44,13); ctx.quadraticCurveTo(-54,13,-54,8); ctx.closePath();
+    fillOutline('#e23b3b', 3.5);
+    // flat highlight stripe (white racing stripe)
+    ctx.beginPath(); rr(-46,-13,78,6,3); ctx.fillStyle='#ffffff'; ctx.fill();
+    // headlight
+    ctx.beginPath(); ctx.arc(47,3,4.5,0,Math.PI*2); fillOutline('#ffe45e', 2.5);
+    // windshield
+    ctx.beginPath(); ctx.moveTo(14,-18); ctx.quadraticCurveTo(30,-37,33,-18); ctx.closePath(); fillOutline('#cdeeff', 2.5);
+    // seat
+    ctx.beginPath(); rr(-52,-22,30,10,5); fillOutline('#2c2740', 2.5);
+    // handlebar
+    ctx.beginPath(); ctx.moveTo(15,-14); ctx.lineTo(7,-30); ctx.strokeStyle=INK; ctx.lineWidth=4; ctx.lineCap='round'; ctx.stroke();
+    if (!celebrating) drawRider();          // during the celebration Larry has hopped off
+  });
+}
+// The rider = Larry Enticer (denim jacket, mullet, 'stache, orange shades, beer up)
+function drawRider() {
+  ctx.save(); ctx.translate(-20,-16);
+  // ---- torso: light-denim jacket, leaning forward ----
+  ctx.beginPath(); ctx.moveTo(-8,11); ctx.quadraticCurveTo(-14,-9,3,-13);
+  ctx.quadraticCurveTo(22,-15,28,4); ctx.quadraticCurveTo(13,12,-8,11); ctx.closePath();
+  fillOutline('#7ba6da', 3);
+  ctx.strokeStyle='#3f5d86'; ctx.lineWidth=1.6;                                // collar + placket
+  ctx.beginPath(); ctx.moveTo(2,-11); ctx.lineTo(9,-1); ctx.lineTo(15,-12); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(9,-1); ctx.lineTo(11,11); ctx.stroke();
+  // ---- raised arm holding a beer high (drawn ON TOP so it connects) ----
+  ctx.lineCap='round';
+  ctx.strokeStyle=INK; ctx.lineWidth=12; ctx.beginPath(); ctx.moveTo(3,-9); ctx.lineTo(-9,-35); ctx.stroke();
+  ctx.strokeStyle='#7ba6da'; ctx.lineWidth=9; ctx.beginPath(); ctx.moveTo(3,-9); ctx.lineTo(-9,-35); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-10,-36,4.5,0,Math.PI*2); fillOutline('#ffd0a0',2.2);   // hand
+  ctx.save(); ctx.translate(-11,-47);                                              // beer can
+  ctx.beginPath(); rr(-6,-10,12,21,3); fillOutline('#ffd23a',2.5);
+  ctx.fillStyle='#fff'; ctx.fillRect(-6,-3,12,8); ctx.fillStyle='#e23b54'; ctx.fillRect(-6,-1,12,3);
+  ctx.restore();
+  // ---- arm on the handlebar ----
+  ctx.beginPath(); ctx.moveTo(14,-3); ctx.lineTo(33,9); ctx.strokeStyle='#7ba6da'; ctx.lineWidth=8; ctx.lineCap='round'; ctx.stroke();
+  ctx.beginPath(); ctx.arc(34,10,4.5,0,Math.PI*2); fillOutline('#ffd0a0',2.5);
+  drawLarryHead();
+  ctx.restore();
+}
+// Larry's head (mullet, shades, 'stache) — centred at local (10,-20) so poses can reuse it
+function drawLarryHead() {
+  ctx.beginPath();
+  ctx.moveTo(3,-30); ctx.quadraticCurveTo(-15,-26,-13,-5);
+  ctx.quadraticCurveTo(-12,5,-4,4); ctx.quadraticCurveTo(-4,-12,1,-18);
+  ctx.closePath(); fillOutline('#5b3d24', 2.5);
+  ctx.beginPath(); ctx.arc(10,-20,18,0,Math.PI*2); fillOutline('#ffce9c', 3);
+  ctx.beginPath();
+  ctx.moveTo(-5,-18); ctx.quadraticCurveTo(-7,-31,7,-35);
+  ctx.quadraticCurveTo(23,-37,25,-21); ctx.quadraticCurveTo(19,-25,11,-24);
+  ctx.quadraticCurveTo(2,-25,-5,-18); ctx.closePath(); fillOutline('#5b3d24', 2.5);
+  ctx.beginPath(); rr(0,-22,10,8,3); fillOutline('#ff9a3c', 2.5);
+  ctx.beginPath(); rr(11,-22,10,8,3); fillOutline('#ff9a3c', 2.5);
+  ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(10,-18); ctx.lineTo(11,-18); ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,.6)'; ctx.lineWidth=1.4;
+  ctx.beginPath(); ctx.moveTo(2,-15); ctx.lineTo(6,-20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(13,-15); ctx.lineTo(17,-20); ctx.stroke();
+  ctx.fillStyle='rgba(255,110,120,.55)';
+  ctx.beginPath(); ctx.arc(-1,-9,3,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(21,-9,3,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(4,-4); ctx.quadraticCurveTo(10,2,17,-4);
+  ctx.quadraticCurveTo(10,-2,4,-4); ctx.closePath(); fillOutline('#6a1f2b',1.8);
+  ctx.fillStyle='#ff7a7a'; ctx.beginPath(); ctx.ellipse(10,-2,2.4,1.4,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#5b3d24'; ctx.beginPath();
+  ctx.moveTo(10,-12); ctx.quadraticCurveTo(0,-13,-3,-3);
+  ctx.quadraticCurveTo(2,-7,7,-7); ctx.quadraticCurveTo(10,-7,10,-9);
+  ctx.quadraticCurveTo(10,-7,13,-7); ctx.quadraticCurveTo(18,-7,23,-3);
+  ctx.quadraticCurveTo(20,-13,10,-12); ctx.closePath();
+  ctx.fill(); ctx.strokeStyle=INK; ctx.lineWidth=1.5; ctx.stroke();
+}
+// Larry OFF the sled, standing on the snow, hitting THE DAB (feet at groundY, centred at cx)
+function drawStandingLarry(cx, groundY, t) {
+  ctx.save();
+  ctx.translate(cx, groundY - Math.abs(Math.sin(t*0.011))*9);   // little victory hop
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  // shadow
+  ctx.fillStyle='rgba(28,21,48,.12)'; ctx.beginPath(); ctx.ellipse(0, 2, 26, 6, 0, 0, Math.PI*2); ctx.fill();
+  // legs (jeans) + boots
+  ctx.strokeStyle=INK; ctx.lineWidth=15; ctx.beginPath(); ctx.moveTo(-7,-40); ctx.lineTo(-10,-6); ctx.moveTo(8,-40); ctx.lineTo(12,-6); ctx.stroke();
+  ctx.strokeStyle='#5f86bd'; ctx.lineWidth=11; ctx.beginPath(); ctx.moveTo(-7,-40); ctx.lineTo(-10,-8); ctx.moveTo(8,-40); ctx.lineTo(12,-8); ctx.stroke();
+  ctx.fillStyle=INK; ctx.beginPath(); rr(-22,-8,20,8,3); fillOutline('#2c2740',2); ctx.beginPath(); rr(2,-8,20,8,3); fillOutline('#2c2740',2);
+  // torso — denim jacket, leaning slightly into the dab
+  ctx.beginPath(); rr(-16,-74,30,38,9); fillOutline('#7ba6da', 3);
+  ctx.strokeStyle='#3f5d86'; ctx.lineWidth=1.8;
+  ctx.beginPath(); ctx.moveTo(-6,-74); ctx.lineTo(-2,-58); ctx.lineTo(3,-74); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-2,-58); ctx.lineTo(-1,-38); ctx.stroke();
+  // ---- THE DAB ----
+  // ---- BOTH ARMS RAISED, cheering with a beer in each hand ----
+  // left arm up
+  ctx.strokeStyle=INK;      ctx.lineWidth=13; ctx.beginPath(); ctx.moveTo(-9,-66); ctx.lineTo(-30,-104); ctx.stroke();
+  ctx.strokeStyle='#7ba6da'; ctx.lineWidth=10; ctx.beginPath(); ctx.moveTo(-9,-66); ctx.lineTo(-30,-104); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-31,-105,5,0,Math.PI*2); fillOutline('#ffd0a0',2.2);
+  // right arm up
+  ctx.strokeStyle=INK;      ctx.lineWidth=13; ctx.beginPath(); ctx.moveTo(9,-66); ctx.lineTo(30,-104); ctx.stroke();
+  ctx.strokeStyle='#7ba6da'; ctx.lineWidth=10; ctx.beginPath(); ctx.moveTo(9,-66); ctx.lineTo(30,-104); ctx.stroke();
+  ctx.beginPath(); ctx.arc(31,-105,5,0,Math.PI*2); fillOutline('#ffd0a0',2.2);
+  // head — UPRIGHT, full face (clean, never tilted)
+  ctx.save(); ctx.translate(-10,-72); drawLarryHead(); ctx.restore();
+  // a beer raised in each hand
+  for (const hx of [-31, 31]) {
+    ctx.save(); ctx.translate(hx, -117);
+    ctx.beginPath(); rr(-7,-11,14,23,3); fillOutline('#ffd23a',2.5);
+    ctx.fillStyle='#fff'; ctx.fillRect(-7,-3,14,9); ctx.fillStyle='#e23b54'; ctx.fillRect(-7,-1,14,4);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+// ---- Kenny-from-South-Park spectator (orange parka, hood, only eyes peeking out) ----
+function drawKenny(t, phase) {
+  const hop  = Math.abs(Math.sin(t*0.013 + phase)) * 7;        // jumping for joy
+  const wave = Math.sin(t*0.02 + phase) * 6;                   // arm waggle
+  const ORANGE='#f7621b', FUR='#7a4a28';
+  ctx.save();
+  ctx.translate(0, -hop);
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.fillStyle='rgba(28,21,48,.12)'; ctx.beginPath(); ctx.ellipse(0, 2+hop, 16, 4, 0, 0, Math.PI*2); ctx.fill();
+  // tiny black shoes + orange snow-pant legs
+  ctx.fillStyle=INK; ctx.beginPath(); rr(-11,-5,10,5,2); ctx.fill(); ctx.beginPath(); rr(1,-5,10,5,2); ctx.fill();
+  ctx.strokeStyle=INK;    ctx.lineWidth=11; ctx.beginPath(); ctx.moveTo(-6,-26); ctx.lineTo(-6,-4); ctx.moveTo(6,-26); ctx.lineTo(6,-4); ctx.stroke();
+  ctx.strokeStyle=ORANGE; ctx.lineWidth=8;  ctx.beginPath(); ctx.moveTo(-6,-26); ctx.lineTo(-6,-5); ctx.moveTo(6,-26); ctx.lineTo(6,-5); ctx.stroke();
+  // raised arms (orange sleeves) + brown mittens, waving
+  for (const s of [-1,1]) {
+    const ax=s*12, ay=-30, hxx=s*23, hyy=-52 - Math.abs(wave);
+    ctx.strokeStyle=INK;    ctx.lineWidth=12; ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(hxx,hyy); ctx.stroke();
+    ctx.strokeStyle=ORANGE; ctx.lineWidth=9;  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(hxx,hyy); ctx.stroke();
+    ctx.beginPath(); ctx.arc(hxx,hyy,6,0,Math.PI*2); fillOutline(FUR,2.4);          // brown mitten
+  }
+  // orange parka body + center zipper
+  ctx.beginPath(); rr(-16,-52,32,30,12); fillOutline(ORANGE,3);
+  ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,-49); ctx.lineTo(0,-24); ctx.stroke();
+  // ---- HEAD: orange hood, brown fur ring, beige face, big white eyes ----
+  const hy=-64;
+  ctx.beginPath(); ctx.arc(0,hy,19,0,Math.PI*2); fillOutline(ORANGE,3);             // hood
+  ctx.beginPath(); ctx.arc(0,hy,14,0,Math.PI*2); fillOutline(FUR,2.4);              // fur ring
+  ctx.beginPath(); ctx.arc(0,hy,10,0,Math.PI*2); fillOutline('#ffe0b0',2);          // beige face
+  ctx.beginPath(); ctx.ellipse(-3.7,hy-1,4.6,6.4,0,0,Math.PI*2); fillOutline('#fff',1.7);   // big white eyes
+  ctx.beginPath(); ctx.ellipse( 3.7,hy-1,4.6,6.4,0,0,Math.PI*2); fillOutline('#fff',1.7);
+  ctx.fillStyle=INK; ctx.beginPath(); ctx.arc(-1.4,hy-1,1.8,0,Math.PI*2); ctx.arc(1.4,hy-1,1.8,0,Math.PI*2); ctx.fill();  // pupils, toward center
+  // hood drawstrings dangling onto the chest
+  ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-3,hy+11); ctx.lineTo(-3,hy+18); ctx.moveTo(3,hy+11); ctx.lineTo(3,hy+18); ctx.stroke();
+  ctx.restore();
+}
+// A crowd of Kennys flanking Larry, cheering him on
+function drawCrowd(centerX, groundY, t) {
+  const spots = [-235,-198,-160,-122, 82,118,156,196,236];   // gap in the middle for Larry
+  spots.forEach((dx, i) => {
+    ctx.save();
+    ctx.translate(centerX + dx, groundY + ((i*13)%9) - 2);   // slight depth jitter
+    const sc = 0.82 + ((i*7)%5)/24;
+    ctx.scale(sc, sc);
+    drawKenny(t, i*1.27);
+    ctx.restore();
+  });
+}
+// Ducked head for the dab: just hair, mullet, and a peek of shades (no face to smush)
+function drawDabHead() {
+  // skin
+  ctx.beginPath(); ctx.arc(0,0,16,0,Math.PI*2); fillOutline('#ffce9c',3);
+  // brown hair covering most of the head (back/top)
+  ctx.beginPath(); ctx.arc(0,0,16.5, Math.PI*0.78, Math.PI*2.08, false); ctx.closePath(); fillOutline('#5b3d24',2.5);
+  // mullet flowing down the back
+  ctx.beginPath(); ctx.moveTo(-9,7); ctx.quadraticCurveTo(-25,13,-23,33);
+  ctx.quadraticCurveTo(-17,42,-6,36); ctx.quadraticCurveTo(-11,15,3,11); ctx.closePath(); fillOutline('#5b3d24',2.5);
+  // orange shades peeking on the lower face (so you know it's Larry)
+  ctx.beginPath(); rr(2,2,13,7,3); fillOutline('#ff9a3c',2.2);
+}
+function drawBlock(b) {
+  local(b, () => {
+    const w = b.w, h = b.h;
+    if (b.mat === 'stone') {                                   // immovable stone pillar
+      ctx.beginPath(); rr(-w/2,-h/2,w,h,4); fillOutline('#8b8f96', 3);
+      ctx.strokeStyle = 'rgba(28,21,48,.30)'; ctx.lineWidth = 1.5;
+      for (let y=-h/2+12; y<h/2-4; y+=16){                     // staggered block courses
+        ctx.beginPath(); ctx.moveTo(-w/2+3,y); ctx.lineTo(w/2-3,y); ctx.stroke();
+        const mx = (Math.floor((y+999)/16)%2) ? -3 : 3;
+        ctx.beginPath(); ctx.moveTo(mx,y); ctx.lineTo(mx,y+16); ctx.stroke();
+      }
+      ctx.fillStyle='rgba(255,255,255,.18)'; ctx.fillRect(-w/2+3,-h/2+4,4,h-8);
+      return;
+    }
+    ctx.beginPath(); rr(-w/2,-h/2,w,h,4); fillOutline('#b07a44', 3);
+    ctx.strokeStyle = 'rgba(28,21,48,.25)'; ctx.lineWidth = 1.5;
+    if (w >= h) { for (let y=-h/2+8; y<h/2-2; y+=9){ ctx.beginPath(); ctx.moveTo(-w/2+4,y); ctx.lineTo(w/2-4,y); ctx.stroke(); } }
+    else        { for (let x=-w/2+8; x<w/2-2; x+=9){ ctx.beginPath(); ctx.moveTo(x,-h/2+4); ctx.lineTo(x,h/2-4); ctx.stroke(); } }
+  });
+}
+function drawCan(can) {
+  local(can, () => {
+    const w=42, h=74;
+    ctx.beginPath(); rr(-w/2,-h/2,w,h,6);
+    fillOutline(can.knocked ? '#9aa0a6' : `hsl(${can.hue},88%,55%)`, 3);
+    // big white label taking up most of the can
+    ctx.beginPath(); rr(-w/2+2,-26,w-4,52,4); ctx.fillStyle='#fff'; ctx.fill();
+    ctx.strokeStyle=INK; ctx.lineWidth=2; ctx.stroke();
+    ctx.fillStyle='#e23b54'; ctx.fillRect(-w/2+2,-2,w-4,10);    // red stripe
+    // BIG bold BEER
+    ctx.fillStyle=INK; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font='900 16px system-ui'; ctx.fillText('BEER',0,-13);
+    ctx.fillStyle='#ffd84a'; ctx.font='900 13px system-ui'; ctx.fillText('★',0,16);
+    // rim highlight + reset baseline
+    ctx.fillStyle='rgba(255,255,255,.45)'; ctx.fillRect(-w/2+4,-h/2+5,4,h-10);
+    ctx.textBaseline='alphabetic';
+  });
+}
+function drawPowerGauge() {
+  if (!dragging || !dragWorld) return;
+  const dist = clamp(Vector.magnitude(Vector.sub(sled.position, dragWorld)), 0, MAX_DRAG);
+  const t = dist / MAX_DRAG;
+  const sx = sled.position.x, sy = sled.position.y - 52;
+  // throttle bar above the sled
+  ctx.fillStyle='rgba(0,0,0,.35)'; rr(sx-60, sy-9, 120, 16, 8); ctx.fill();
+  ctx.fillStyle=`rgb(${90+t*165},${190-t*150},70)`; rr(sx-57, sy-6, 114*t, 10, 5); ctx.fill();
+  // aim arrow along the ground
+  ctx.strokeStyle='rgba(20,20,20,.5)'; ctx.lineWidth=4; ctx.beginPath();
+  ctx.moveTo(dragWorld.x, sled.position.y); ctx.lineTo(sled.position.x, sled.position.y); ctx.stroke();
+  ctx.fillStyle=`rgb(${90+t*165},${190-t*150},70)`;
+  const ax = sled.position.x + 30 + t*60, ay = sled.position.y;
+  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(ax-16,ay-9); ctx.lineTo(ax-16,ay+9); ctx.closePath(); ctx.fill();
+  // mph readout
+  const v0 = dist * POWER, mph = Math.round(v0 / 16.4 * 60);
+  ctx.fillStyle='#fff'; ctx.font='bold 24px system-ui'; ctx.textAlign='center';
+  ctx.fillText(mph + ' mph', sx, sy - 18);
+  // ---- predicted flight arc off the lip (real physics: lip speed ≈ EFF×launch) ----
+  const vlip = v0 * LAUNCH_EFF, gStep = 0.275 * engine.gravity.y;
+  let px = LIP.x, py = LIP.y, vx = vlip*Math.cos(RAMP.theta), vy = -vlip*Math.sin(RAMP.theta);
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  for (let i = 0; i < 90; i++) {
+    px += vx; py += vy; vy += gStep; vx *= 0.9994; vy *= 0.9994;
+    if (py > GROUND_Y) break;
+    if (i % 2 === 0) { ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI*2); ctx.fill(); }
+  }
+}
+function drawParticles(){ for(const p of burstP){ ctx.globalAlpha=Math.max(0,p.life);
+  ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill(); } ctx.globalAlpha=1; }
+function drawSnow(){ ctx.fillStyle='rgba(255,255,255,.85)';
+  for(const f of snow){ ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,Math.PI*2); ctx.fill(); } }
+
+// ---- Loop ----
+// FIXED-TIMESTEP physics: Matter velocities & our tuned constants are per-step (60/s), so we
+// MUST advance the sim at a constant rate regardless of the monitor's refresh. (Stepping with
+// raw frame dt made the sled fly ~2× farther on a 120/144 Hz display — straight over the towers.)
+const STEP = 1000/60;
+let acc = 0, last = performance.now();
+function physicsStep() {
+  if (state !== 'fly') return;
+  if (!celebrating) {
+    // airborne = clearly up in the air AND not touching anything. (Both are needed:
+    // a resting/bouncing sled's contact flickers, so "not touching" alone lets it
+    // pump itself into an endless ground cartwheel.)
+    const airborne = sled.position.y < GROUND_Y - 55 &&
+                     Query.collides(sled, world.bodies.filter(b => b !== sled)).length === 0;
+    // crazy backflip kick the instant it leaves the lip
+    if (!launchBoosted && airborne && sled.position.x > LIP.x - 10 && sled.position.y < GROUND_Y - 45) {
+      const dir = sled.angularVelocity <= 0 ? -1 : 1;
+      Body.setAngularVelocity(sled, sled.angularVelocity + dir * 0.09);   // crazy backflip kick (air control lets you level out)
+      launchBoosted = true;
+    }
+    // air control — ONLY while airborne; once he touches down, controls stop
+    if (airborne) {
+      const AIR = 0.004, SPIN_CAP = 0.26;
+      if (keys.left)  Body.setAngularVelocity(sled, Math.max(-SPIN_CAP, sled.angularVelocity - AIR));
+      if (keys.right) Body.setAngularVelocity(sled, Math.min( SPIN_CAP, sled.angularVelocity + AIR));
+    }
+    if (prevAirborne && !airborne && sled.velocity.y > 3) sndThud();   // landing
+    prevAirborne = airborne;
+  }
+  Engine.update(engine, STEP);
+  checkCans();
+  // transition beat: after the last can falls, let the sled finish flying & settle,
+  // then Larry hops off. (Hold off respawn so he doesn't get teleported back to the start.)
+  if (winPending && !celebrating) {
+    winT += STEP;
+    const settled = Vector.magnitude(sled.velocity) < 1.2 && sled.position.y > GROUND_Y - 80;
+    if (winT > 700 && (settled || winT > 1800)) startCelebration();
+  }
+  if (!celebrating && !winPending) {
+    if (Vector.magnitude(sled.velocity) > 5 && sled.position.y > GROUND_Y - 70)
+      spray(sled.position.x - 34, sled.position.y + 8);
+    maybeRespawn(STEP);
+  }
+}
+function loop(now) {
+  const frame = Math.min(100, now - last); last = now;       // clamp huge gaps (backgrounded tab)
+  acc += frame;
+  let n = 0;
+  while (acc >= STEP && n < 5) { physicsStep(); acc -= STEP; n++; }   // cap to avoid spiral of death
+  if (acc >= STEP) acc = 0;                                  // we're behind; drop the backlog
+  // celebration: rain confetti (and finale fireworks) — time-based so it's FPS-independent
+  if (celebrating) {
+    celebrateT += frame;
+    if (Math.random() < (celebrateBig ? 0.95 : 0.55)) confetti(cam.x + Math.random()*VW, cam.y - 10, celebrateBig ? 5 : 3);
+    if (celebrateBig && Math.random() < 0.22) confetti(cam.x + Math.random()*VW, cam.y + Math.random()*VH*0.5, 14);
+  }
+  stepParticles(); stepSnow(); stepCamera();
+
+  // clear full backing (letterbox bars)
+  ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  ctx.fillStyle = '#0b1a2b'; ctx.fillRect(0, 0, canvas.width/view.dpr, canvas.height/view.dpr);
+  // establish uniform game transform (scaled + centred), clipped to the play area
+  ctx.setTransform(view.dpr*view.scale, 0, 0, view.dpr*view.scale, view.offX*view.dpr, view.offY*view.dpr);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, VW, VH); ctx.clip();
+
+  // screen-space sky
+  sky();
+  mountains(540, '#cfe2f2', 0.20);
+  mountains(470, '#bcd6ec', 0.34);
+  // world-space (camera) layer
+  ctx.save(); ctx.translate(-cam.x, -cam.y);
+  ground();
+  for (const x of treeXs) tree(x, 0.9 + (x%7)/14);
+  drawRamp();
+  for (const b of blocks) drawBlock(b);
+  for (const can of cans) drawCan(can);
+  drawSnowmobile(sled);                                // parked (empty) during celebration
+  if (celebrating) {
+    drawCrowd(sled.position.x - 96, GROUND_Y, celebrateT);     // Kenny audience behind
+    drawStandingLarry(sled.position.x - 96, GROUND_Y, celebrateT);
+  }
+  drawParticles();
+  drawPowerGauge();
+  ctx.restore();
+  // screen-space snow on top
+  drawSnow();
+
+  ctx.restore();   // drop clip
+
+  requestAnimationFrame(loop);
+}
+
+resize();
+buildLevel();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
