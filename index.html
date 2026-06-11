@@ -64,7 +64,7 @@
     <div class="stat">Cans down: <span id="score">0</span> / <span id="total">0</span></div>
     <div class="stat">Launches: <span id="shots">0</span> / 5</div>
   </div>
-  <div id="help">Drag back &amp; release to send it off the kicker • ◄ ► / A,D to flip &amp; level out mid-air • R resets • M mutes <span style="opacity:.45">• build 2026-06-10b</span></div>
+  <div id="help">Drag back &amp; release to send it off the kicker • ◄ ► / A,D to flip &amp; level out mid-air • R resets • M mutes <span style="opacity:.45">• build 2026-06-10c</span></div>
   <button id="restartgame">⟲ Reset game</button>
   <button id="restart">↻ Retry level</button>
   <div id="flipL" class="flipbtn">◄</div>
@@ -314,8 +314,7 @@ function endDrag() {
   dragging = false; canvas.classList.remove('dragging');
   const dist = Vector.magnitude(Vector.sub(sled.position, dragWorld)); // drag in ANY direction
   if (dist < 14) { dragWorld = null; return; }        // tiny drag cancels
-  const emd = MAX_DRAG / Math.min(1, view.scale);     // normalize so the same CSS-pixel gesture = same power on any screen size
-  const speed = Math.min(dist / emd, 1) * MAX_DRAG * POWER;
+  const speed = Math.min(dist, MAX_DRAG) * POWER;
   Body.setStatic(sled, false);
   Body.setVelocity(sled, { x: speed, y: 0 });          // gun it straight down the flats
   Body.setAngularVelocity(sled, 0);
@@ -959,9 +958,8 @@ function drawCan(can) {
 }
 function drawPowerGauge() {
   if (!dragging || !dragWorld) return;
-  const emd = MAX_DRAG / Math.min(1, view.scale);
-  const dist = clamp(Vector.magnitude(Vector.sub(sled.position, dragWorld)), 0, emd);
-  const t = dist / emd;
+  const dist = clamp(Vector.magnitude(Vector.sub(sled.position, dragWorld)), 0, MAX_DRAG);
+  const t = dist / MAX_DRAG;
   const sx = sled.position.x, sy = sled.position.y - 52;
   // throttle bar above the sled
   ctx.fillStyle='rgba(0,0,0,.35)'; rr(sx-60, sy-9, 120, 16, 8); ctx.fill();
@@ -973,7 +971,7 @@ function drawPowerGauge() {
   const ax = sled.position.x + 30 + t*60, ay = sled.position.y;
   ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(ax-16,ay-9); ctx.lineTo(ax-16,ay+9); ctx.closePath(); ctx.fill();
   // mph readout
-  const v0 = t * MAX_DRAG * POWER, mph = Math.round(v0 / 16.4 * 60);
+  const v0 = dist * POWER, mph = Math.round(v0 / 16.4 * 60);
   ctx.fillStyle='#fff'; ctx.font='bold 24px system-ui'; ctx.textAlign='center';
   ctx.fillText(mph + ' mph', sx, sy - 18);
   // ---- predicted flight arc off the lip (real physics: lip speed ≈ EFF×launch) ----
