@@ -64,7 +64,7 @@
     <div class="stat">Cans down: <span id="score">0</span> / <span id="total">0</span></div>
     <div class="stat">Launches: <span id="shots">0</span> / 5</div>
   </div>
-  <div id="help">Drag back &amp; release to send it off the kicker • ◄ ► / A,D to flip &amp; level out mid-air • R resets • M mutes <span style="opacity:.45">• build 2026-06-10d</span></div>
+  <div id="help">Drag back &amp; release to send it off the kicker • ◄ ► / A,D to flip &amp; level out mid-air • R resets • M mutes <span style="opacity:.45">• build 2026-06-10e</span></div>
   <button id="restartgame">⟲ Reset game</button>
   <button id="restart">↻ Retry level</button>
   <div id="flipL" class="flipbtn">◄</div>
@@ -537,11 +537,20 @@ function stepSnow(){ for(const f of snow){ f.y+=f.s; f.x+=f.drift;
 // ---- Camera ----
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 function stepCamera() {
-  let tx = (state === 'aim')                         // in aim, sit the sled ~45% across for pull-back room
-    ? sled.position.x - VW*0.45
-    : clamp(sled.position.x - VW*0.32, -1150, WORLD_W - VW);
+  let tx;
+  if (state === 'aim' || celebrating || gameOver) {
+    tx = sled.position.x - VW * 0.45;               // stay on Larry for aim / win / wipeout
+  } else {
+    const speed = Vector.magnitude(sled.velocity);
+    const onGround = sled.position.y > GROUND_Y - 50;
+    if (launchBoosted && onGround && speed < 6) {
+      tx = canX() - VW * 0.5;                       // sled has settled — pan to the towers
+    } else {
+      tx = sled.position.x - VW * 0.32;             // follow the sled while it's flying/sliding
+    }
+  }
   tx = clamp(tx, -1150, WORLD_W - VW);
-  const ty = clamp(sled.position.y - VH*0.62, -360, 0);
+  const ty = clamp(sled.position.y - VH * 0.62, -360, 0);
   cam.x += (tx - cam.x) * 0.09;
   cam.y += (ty - cam.y) * 0.09;
 }
