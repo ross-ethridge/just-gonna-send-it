@@ -34,7 +34,7 @@ No install, no sign-up — it runs right in your browser (desktop or mobile).
 | Mute / unmute sound | **M** |
 | Restart from level 1 | **Reset game** button |
 
-Launches are unlimited — if you come up short, just send it again.
+You get **5 launches per level** — knock down all the cans before you run out or the level fails.
 
 ## 🛠️ Tech
 
