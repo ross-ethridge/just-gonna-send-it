@@ -19,7 +19,7 @@ No install, no sign-up — it runs right in your browser (desktop or mobile).
 2. A throttle gauge, an **mph readout**, and a dotted **flight-path preview** show where you'll
    land while you aim.
 3. Once you're airborne, tap the arrows to **flip and level out** so you smash into the cans.
-4. Knock down **every can** to clear the level. There are **6 levels**, each a bigger, taller,
+4. Knock down **every can** to clear the level. There are **10 levels**, each a bigger, taller,
    more ridiculous tower than the last.
 5. Clear a level and the rider leaps off to celebrate while a crowd of orange-parka spectators
    cheers him on. 🍻

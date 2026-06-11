@@ -60,11 +60,11 @@
   <canvas id="c"></canvas>
   <div id="hud">
     <h1>🏔️ JUST GONNA SEND IT</h1>
-    <div class="stat">Level <span id="level">1</span> / <span id="levels">6</span></div>
+    <div class="stat">Level <span id="level">1</span> / <span id="levels">10</span></div>
     <div class="stat">Cans down: <span id="score">0</span> / <span id="total">0</span></div>
     <div class="stat">Launches: <span id="shots">0</span> / 5</div>
   </div>
-  <div id="help">Drag back &amp; release to send it off the kicker • ◄ ► / A,D to flip &amp; level out mid-air • R resets • M mutes <span style="opacity:.45">• build 2026-06-10c</span></div>
+  <div id="help">Drag back &amp; release to send it off the kicker • ◄ ► / A,D to flip &amp; level out mid-air • R resets • M mutes <span style="opacity:.45">• build 2026-06-10d</span></div>
   <button id="restartgame">⟲ Reset game</button>
   <button id="restart">↻ Retry level</button>
   <div id="flipL" class="flipbtn">◄</div>
@@ -119,7 +119,7 @@ RAMP.topY = RAMP.pts[RAMP.pts.length-1].y;
 const LIP = { x: RAMP.x1, y: RAMP.topY };               // takeoff point
 // Ramp→castle distance, PER LEVEL (the ~71 mph arc lands ~3220; towers sit in its steep
 // descent zone so the sled drops INTO them rather than cresting over). Tune each level here.
-const LEVEL_X = [2650, 2650, 2650, 2650, 2650, 2650];   // centre of the giant-quarterpipe reachable band (~2030–3160); towers spread ±~360 so each needs its own power
+const LEVEL_X = [2650, 2650, 2650, 2650, 2650, 2650, 2650, 2650, 2650, 2650];   // centre of the giant-quarterpipe reachable band (~2030–3160); towers spread ±~360 so each needs its own power
 const canX = () => LEVEL_X[level];
 const LAUNCH_EFF = 0.72;                                // measured: lip speed ≈ 0.72 × launch (ramp loss)
 
@@ -180,7 +180,7 @@ function makeSled() {
     {x:-56,y:17}                                            // flat bottom back to the tail
   ];
   const b = Bodies.fromVertices(ANCHOR.x, ANCHOR.y, [verts], {
-    label: 'sled', density: 0.006, friction: 0.004, frictionAir: 0.0006,
+    label: 'sled', density: 0.0063, friction: 0.004, frictionAir: 0.0006,
     restitution: 0, chamfer: { radius: 6 }       // round the corners a touch more
   }, true);
   Body.setStatic(b, true);
@@ -242,6 +242,14 @@ const LEVELS = [
   (B,C,G,ch,X) => { tower(B,C,X-330,G,4,38, 2,280); tower(B,C,X,G,3,38, 0,150); tower(B,C,X+330,G,5,40, 2,40); },
   // 6 — three wide towers, all reinforced (hard)
   (B,C,G,ch,X) => { tower(B,C,X-340,G,4,38, 2,300); tower(B,C,X,G,5,40, 3,160); tower(B,C,X+340,G,4,38, 2,50); },
+  // 7 — four towers; outer two light, inner two with one metal floor each (12 cans)
+  (B,C,G,ch,X) => { tower(B,C,X-350,G,3,38, 0,310); tower(B,C,X-110,G,4,40, 1,170); tower(B,C,X+120,G,4,38, 1,100); tower(B,C,X+340,G,3,38, 1,40); },
+  // 8 — four towers, taller, inner pair two metal floors each (14 cans)
+  (B,C,G,ch,X) => { tower(B,C,X-350,G,4,38, 1,310); tower(B,C,X-110,G,5,40, 2,175); tower(B,C,X+120,G,5,40, 2,100); tower(B,C,X+340,G,4,38, 1,40); },
+  // 9 — four towers, all five floors, heavily reinforced throughout (16 cans)
+  (B,C,G,ch,X) => { tower(B,C,X-360,G,5,38, 2,315); tower(B,C,X-110,G,5,40, 3,180); tower(B,C,X+110,G,5,40, 2,100); tower(B,C,X+350,G,5,38, 2,40); },
+  // 10 — four towers, max height & reinforcement — the gauntlet (16 cans)
+  (B,C,G,ch,X) => { tower(B,C,X-355,G,5,40, 3,320); tower(B,C,X-110,G,6,40, 3,185); tower(B,C,X+110,G,6,40, 3,105); tower(B,C,X+345,G,5,40, 2,45); },
 ];
 
 function buildLevel() {

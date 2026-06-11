@@ -3,7 +3,7 @@
 An Angry-Birds-style 2D physics game: drag back to launch a snowmobile (ridden by
 **Larry Enticer** — denim jacket, mullet, mustache, orange aviators, beer in hand) down a
 runway, off a kicker ramp, into towers of beer cans. Land the arc on the elevated cans to
-knock them all down and clear the level. 6 levels, escalating towers.
+knock them all down and clear the level. 10 levels, escalating towers.
 
 ## Layout / how to run
 
@@ -132,7 +132,9 @@ arg to pass that through (currently only the stone footing is static).
 - `deck(B,C,...)` exists (a metal girder bridging two towers) but is **currently unused** —
   decks connect towers so a hit cascades both, which fights the multi-shot design; avoid.
 - `LEVELS[]` — **SEPARATE towers spread ±~360 across the reachable band** (no decks): L1 one
-  tower; L2/L3 two (near + far); L4/L5/L6 three across the band. Counts 3–10; heights ~38–57 ft.
+  tower; L2/L3 two (near + far); L4/L5/L6 three across the band; L7–L10 four towers (L7 intro,
+  L8 taller, L9 heavy metal throughout, L10 max height + max reinforcement — the gauntlet).
+  Counts 3–16 cans; heights ~38–57 ft.
   Spreading is what makes it multi-shot — a near tower needs a soft pull, a far one a full send,
   so a single shot only topples ~one tower (clustering them lets one shot sweep the lot).
 - **Dead code (safe to delete):** `abTower`, `wideTower`, `crown`, `span`, `seussTower`, `bulb`,
