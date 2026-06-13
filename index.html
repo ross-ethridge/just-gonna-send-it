@@ -5,32 +5,39 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Just Gonna Send It</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #0b1a2b; overflow: hidden;
-    font-family: system-ui, sans-serif; user-select: none; }
+  html, body { margin: 0; height: 100%; background: #161033; overflow: hidden;
+    font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; user-select: none; }
   #wrap { position: relative; width: 100vw; height: 100dvh; }
   canvas { display: block; width: 100%; height: 100%; cursor: grab; }
   canvas.dragging { cursor: grabbing; }
-  #hud { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 12px); left: calc(env(safe-area-inset-left, 0px) + 16px); color: #fff;
-    text-shadow: 0 2px 5px rgba(0,0,0,.55); pointer-events: none; }
-  #hud h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: 1px; font-weight: 800; }
-  #hud .stat { font-size: 15px; opacity: .95; }
-  #help { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); left: calc(env(safe-area-inset-left, 0px) + 16px); color: #eaf4ff;
-    font-size: 13px; opacity: .85; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
-  #restart, #restartgame { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 12px); color: #fff;
-    background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.35);
-    border-radius: 8px; padding: 8px 14px; font-size: 14px; cursor: pointer; }
+  /* glassy HUD card */
+  #hud { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px); left: calc(env(safe-area-inset-left, 0px) + 16px); color: #fff;
+    pointer-events: none; padding: 12px 16px; border-radius: 18px;
+    background: rgba(28,18,58,.34); backdrop-filter: blur(12px) saturate(1.2); -webkit-backdrop-filter: blur(12px) saturate(1.2);
+    border: 1px solid rgba(255,255,255,.16); box-shadow: 0 8px 30px rgba(20,10,45,.35); }
+  #hud h1 { margin: 0 0 7px; font-size: 21px; letter-spacing: .3px; font-weight: 800;
+    background: linear-gradient(90deg,#ffe7b8,#ff9aa8 55%,#c59bff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  #hud .stat { font-size: 14px; font-weight: 600; opacity: .92; letter-spacing: .2px; line-height: 1.5; }
+  #hud .stat span { font-weight: 800; color: #ffe1a8; }
+  #help { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); left: calc(env(safe-area-inset-left, 0px) + 16px); color: #f3ecff;
+    font-size: 13px; font-weight: 500; opacity: .8; text-shadow: 0 1px 4px rgba(20,10,40,.7); }
+  #restart, #restartgame { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px); color: #fff; font-weight: 700; font-size: 13px;
+    background: rgba(40,26,74,.4); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,.22); border-radius: 999px; padding: 9px 16px; cursor: pointer; transition: background .15s, transform .1s; }
   #restart { right: calc(env(safe-area-inset-right, 0px) + 16px); }
-  #restartgame { right: calc(env(safe-area-inset-right, 0px) + 148px); }
-  #restart:hover, #restartgame:hover { background: rgba(255,255,255,.26); }
+  #restartgame { right: calc(env(safe-area-inset-right, 0px) + 150px); }
+  #restart:hover, #restartgame:hover { background: rgba(255,255,255,.28); }
+  #restart:active, #restartgame:active { transform: scale(.95); }
   #win { position: absolute; inset: 0; display: none; align-items: center;
     justify-content: center; flex-direction: column; color: #fff;
-    background: rgba(10,25,45,.55); pointer-events: none; }
+    background: radial-gradient(circle at 50% 42%, rgba(60,30,90,.35), rgba(16,10,40,.66)); pointer-events: none; }
   #win.show { display: flex; }
-  #win .big { font-size: 64px; font-weight: 900; letter-spacing: 2px;
-    text-shadow: 0 4px 16px rgba(0,0,0,.5); }
-  #win .sub { font-size: 20px; margin-top: 8px; opacity: .9; }
-  #win.over { background: rgba(40,8,8,.62); }                 /* GAME OVER: angry red wash */
-  #win.over .big { color: #ff5a5a; text-shadow: 0 4px 18px rgba(0,0,0,.6); }
+  #win .big { font-size: 66px; font-weight: 900; letter-spacing: 1px;
+    background: linear-gradient(90deg,#ffe7b8,#ff8fa3 55%,#b78bff); -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 6px 22px rgba(20,8,45,.55)); }
+  #win .sub { font-size: 20px; margin-top: 10px; opacity: .92; font-weight: 600; }
+  #win.over { background: radial-gradient(circle at 50% 42%, rgba(120,20,40,.4), rgba(30,6,18,.7)); }   /* GAME OVER: angry red wash */
+  #win.over .big { background: linear-gradient(90deg,#ff8a6a,#ff4d6a); -webkit-background-clip: text; background-clip: text; color: transparent; }
   /* On-screen flip buttons (touch only) — hold to rotate the sled mid-air, like ◄ ► / A,D */
   .flipbtn { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); width: 76px; height: 76px; border-radius: 50%;
     display: none; align-items: center; justify-content: center; font-size: 34px; color: #fff;
@@ -45,7 +52,7 @@
   /* "Rotate to landscape" gate — best played wide. Shown only on touch devices in portrait. */
   #rotate { position: absolute; inset: 0; z-index: 50; display: none;
     flex-direction: column; align-items: center; justify-content: center; gap: 18px;
-    text-align: center; padding: 28px; background: #0b1a2b; color: #fff;
+    text-align: center; padding: 28px; background: #161033; color: #fff;
     font-family: system-ui, sans-serif; font-size: 22px; font-weight: 800; letter-spacing: .5px; }
   #rotate .icon { font-size: 72px; animation: tip 1.8s ease-in-out infinite; }
   #rotate .sub { font-size: 15px; font-weight: 500; opacity: .8; }
@@ -64,7 +71,7 @@
     <div class="stat">Cans down: <span id="score">0</span> / <span id="total">0</span></div>
     <div class="stat">Launches: <span id="shots">0</span> / 5</div>
   </div>
-  <div id="help">Drag back &amp; release to send it off the kicker • ◄ ► / A,D to flip &amp; level out mid-air • R resets • M mutes <span style="opacity:.45">• build 2026-06-10e</span></div>
+  <div id="help">Drag back &amp; release to send it off the kicker • ◄ ► / A,D to flip &amp; level out mid-air • R resets • M mutes <span style="opacity:.45">• build 2026-06-12</span></div>
   <button id="restartgame">⟲ Reset game</button>
   <button id="restart">↻ Retry level</button>
   <div id="flipL" class="flipbtn">◄</div>
@@ -117,9 +124,10 @@ RAMP.pts = (() => {
 RAMP.x1 = RAMP.pts[RAMP.pts.length-1].x;
 RAMP.topY = RAMP.pts[RAMP.pts.length-1].y;
 const LIP = { x: RAMP.x1, y: RAMP.topY };               // takeoff point
-// Ramp→castle distance, PER LEVEL (the ~71 mph arc lands ~3220; towers sit in its steep
-// descent zone so the sled drops INTO them rather than cresting over). Tune each level here.
-const LEVEL_X = [2650, 2650, 2650, 2650, 2650, 2650, 2650, 2650, 2650, 2650];   // centre of the giant-quarterpipe reachable band (~2030–3160); towers spread ±~360 so each needs its own power
+// (vestigial) per-level x — targets now sit at absolute SLOT depths and the camera follows the SLED
+// (so it holds on whichever fort you actually hit), so this is only passed as the ignored `X` arg to
+// the level builders. Kept for back-compat / quick reference.
+const LEVEL_X = [2620, 2300, 2780, 2620, 2480, 2620, 2620, 2640, 2640, 2640];
 const canX = () => LEVEL_X[level];
 const LAUNCH_EFF = 0.72;                                // measured: lip speed ≈ 0.72 × launch (ramp loss)
 
@@ -149,19 +157,28 @@ function toWorld(e) {
   const r = canvas.getBoundingClientRect();
   const gx = (e.clientX - r.left - view.offX) / view.scale;
   const gy = (e.clientY - r.top  - view.offY) / view.scale;
-  return { x: gx + cam.x, y: gy + cam.y };
+  // invert the world transform incl. zoom (scaled around the viewport centre)
+  return { x: (gx - VW/2)/camZoom + cam.x + VW/2, y: (gy - VH/2)/camZoom + cam.y + VH/2 };
 }
 
 // ---- State ----
 let engine, world, sled, cans = [], blocks = [], burstP = [], tossedCan = null;
 let state = 'aim';                       // 'aim' | 'fly'
 let score = 0, shots = 0, dragWorld = null, dragging = false, restT = 0, launchBoosted = false, level = 0;
+let landed = false;                      // latched once the sled touches down after its flight: kills air-control & brakes hard (no tumbling into the towers)
 let celebrating = false, celebrateBig = false, celebrateT = 0, prevAirborne = false;
 let celebStartAngle = 0, celebStartY = 0;  // pose at celebration start, for smooth transition
 let winPending = false, winT = 0;        // beat between the last can falling and Larry hopping off
 let gameOver = false, overT = 0;         // GAME OVER state (failed to clear a level in MAX_TRIES launches)
+// Level intro: a quick establishing pan from the far targets (right) back to the sled (left) so the
+// player can read the layout and gauge how hard to pull before launching. Tap/drag skips it.
+let intro = false, introT = 0;
+let introFrom = {x:0,y:0,z:1}, introTo = {x:0,y:0,z:1};   // wide establishing frame -> resting aim frame
+const INTRO_HOLD = 1100, INTRO_PAN = 2300;   // ms: hold the wide shot, then SLOWLY zoom-in + pan to Larry
 const MAX_TRIES = 5;
 const cam = { x: 0, y: 0 };
+let camZoom = 1;                          // world zoom (1 = normal). The intro opens zoomed-OUT to show the whole field.
+let shakeT = 0;                           // screen-shake impulse (bumped when cans get smashed), decays per frame
 
 // Ambient falling snow (screen-space, cosmetic)
 const snow = Array.from({ length: 90 }, () => ({
@@ -192,8 +209,44 @@ function makeSled() {
 function post(B, cx, baseY, h, o) { B(cx, baseY - h/2, 19, h, 0, o); return baseY - h; }   // plank (dynamic unless o.fixed)
 function stonePost(B, cx, baseY, h) { B(cx, baseY - h/2, 22, h, 0, {mat:'stone'}); return baseY - h; } // immovable stone footing
 function beam(B, cx, topY, w, o) { B(cx, topY - 7, w, 14, 0, o); return topY - 14; }        // board, returns its top
-const STONE_H = 56;       // short immovable stone footing height (so a ground-scrape can't auto-win)
+const STONE_H = 56;       // base footing height floor (so a ground-scrape can't auto-win)
 const PH = 92;            // plank/floor height of a tower cell
+
+// ---- IMMOVABLE BASES — every fort stands on an un-bulldozable footing, but NOT all cookie-cutter
+// grey stone: pick from a palette of materials (stone / ice / brick / snow / timber) and two styles
+// (twin LEGS or a solid PLINTH), with a little height variety. All of these are STATIC (anti-cheat).
+const FIXED_MATS = new Set(['stone','ice','brick','snow','timber']);
+const BASE_MATS  = ['stone','ice','brick','snow','timber'];
+// deterministic pseudo-random in [0,1) from a seed — so a fort's look is fixed per position (fair &
+// verifiable) yet every fort differs. Seeded by world-x, so neighbours never match.
+function rnd(seed){ const s = Math.sin(seed * 12.9898) * 43758.5453; return s - Math.floor(s); }
+// build the immovable base under a fort at centre X: pick a MATERIAL and one of five GEOMETRIES from
+// X (deterministic per position → fair & verifiable, but every fort differs). Returns the top y where
+// the wood starts. Tops stay ≲110px so the shot can always reach the wood (taller would strand beers).
+function base(B, X, baseY, hw) {
+  const mat = BASE_MATS[Math.floor(rnd(X) * BASE_MATS.length)];
+  const style = Math.floor(rnd(X*1.7) * 5);
+  if (style === 0) {                                   // PLINTH — squat solid foundation
+    const h = 58; B(X, baseY-h/2, hw*2+28, h, 0, {mat}); return baseY-h;
+  }
+  if (style === 1) {                                   // STILTS — tall slender twin legs (perched)
+    const h = 106; B(X-hw, baseY-h/2, 18, h, 0, {mat}); B(X+hw, baseY-h/2, 18, h, 0, {mat}); return baseY-h;
+  }
+  if (style === 2) {                                   // STEP-PYRAMID — wide skirt with an inner block
+    const h1 = 32, h2 = 42;
+    B(X, baseY-h1/2, hw*2+76, h1, 0, {mat});
+    B(X, baseY-h1-h2/2, hw*2+18, h2, 0, {mat});
+    return baseY-h1-h2;
+  }
+  if (style === 3) {                                   // CHUNKY LEGS — fat short pillars
+    const h = 78; B(X-hw, baseY-h/2, 36, h, 0, {mat}); B(X+hw, baseY-h/2, 36, h, 0, {mat}); return baseY-h;
+  }
+  // style 4: ARCH — twin legs spanned by a thick lintel (a fort gateway you can see daylight through)
+  const h = 96, legH = h - 22;
+  B(X-hw, baseY-legH/2, 22, legH, 0, {mat}); B(X+hw, baseY-legH/2, 22, legH, 0, {mat});
+  B(X, baseY-legH-11, hw*2+28, 22, 0, {mat});
+  return baseY-h;
+}
 // ---- Angry-Birds-style stacked-plank towers (DYNAMIC: they topple & scatter when hit) ----
 // A stack of open "cells" (two planks + a board): beers perch on the roof and a couple inside.
 // Knock the tower over and the beers tumble. Several spread towers per level, so one shot
@@ -205,9 +258,8 @@ const METAL = { mat: 'metal' };                   // heavy red construction beam
 // up into the sled's high launch arc so you don't just fly over it.
 function tower(B, C, X, G, floors, hw, metalWalls=0, ped=0) {
   let y = G;
-  const footH = STONE_H + ped;
-  stonePost(B, X-hw, y, footH); stonePost(B, X+hw, y, footH);       // immovable stone base (can't win by plowing it)
-  y = beam(B, X, y - footH, hw*2 + 28);
+  y = base(B, X, y, hw);                          // varied immovable base (can't win by plowing it)
+  y = beam(B, X, y, hw*2 + 28);
   for (let f = 0; f < floors; f++) {
     if (f % 2 === 0) C(X, y);                   // a beer boxed inside every other floor
     const wall = (f < metalWalls) ? METAL : undefined;
@@ -224,32 +276,84 @@ function deck(B, C, x1, x2, y, n=2) {
   for (let i=0;i<n;i++) C(x1 + (x2-x1)*(i+1)/(n+1), top);
   return top;
 }
+// a BRIDGE: two stone piers with a long girder deck slung between them and a row of beers on top —
+// a horizontal target line that reads very differently from a vertical tower. ped raises the deck.
+function bridge(B, C, x1, x2, G, ped=70, n=3) {
+  const h = STONE_H + ped;                         // deck height is fixed (reachability), but vary the pier material
+  const mat = BASE_MATS[Math.floor(rnd(x1) * BASE_MATS.length)];
+  B(x1, G - h/2, 24, h, 0, { mat }); B(x2, G - h/2, 24, h, 0, { mat });
+  const top = beam(B, (x1+x2)/2, G - h, Math.abs(x2-x1) + 60, METAL);
+  for (let i=0;i<n;i++) C(x1 + (x2-x1)*(i+1)/(n+1), top);
+  return top;
+}
+// a TIERED ZIGGURAT tower: a wedding-cake stack of tiers that step IN as they go up (widest at the
+// base → stable, won't self-collapse, but towers ridiculously tall). tiers = [[floors,hw],…] bottom
+// →top. Beers are boxed inside floors (paired on the WIDE lower tiers so the fort reads "full") and
+// a crown beer tops it. metalBase = how many of the lowest floors get red metal walls. Keep every
+// tier hw ≥ 38 so the (42-wide) beers never overlap the posts — overlapping bodies explode on spawn.
+function ziggurat(B, C, X, G, tiers, metalBase=0) {
+  let y = G, fi = 0;
+  const hw0 = tiers[0][1];
+  y = base(B, X, y, hw0);                       // varied immovable base (material/style/height per X)
+  y = beam(B, X, y, hw0*2 + 28);
+  for (let t = 0; t < tiers.length; t++) {
+    const [floors, hw] = tiers[t];
+    for (let f = 0; f < floors; f++) {
+      if (fi % 2 === 0) {                          // beer(s) boxed on this floor
+        if (hw >= 70) { C(X-hw*0.5, y); C(X+hw*0.5, y); }   // wide tier → a pair, side by side
+        else C(X, y);                                       // narrow tier → one in the middle
+      }
+      const wall = (fi < metalBase) ? METAL : undefined;
+      post(B, X-hw, y, PH, wall); post(B, X+hw, y, PH, wall);
+      y = beam(B, X, y - PH, hw*2 + 28, (fi % 2 === 1) ? METAL : undefined);
+      fi++;
+    }
+  }
+  C(X, y);   // crown beer on the spire
+  return y;
+}
+// ---- DEPTH SLOTS (absolute x) — each lands in a DIFFERENT power band of the launch arc, so a
+// shot tuned for one slot physically can't reach another (a long shot arcs 500px+ over the near
+// ones). Measured kill-powers: N≈270, M1≈300, M2≈330, F1≈360, F2≈390 drag. This is what kills the
+// old one-shot domino: targets are spread across the whole arc, not packed in one row. ----
+const SLOT = { N: 1900, M1: 2250, M2: 2620, F1: 2900, F2: 3260 };
 // Angry-Birds skylines of SEPARATE towers spread across the reachable band. A near tower needs
 // a soft pull, a far one a full send, so each tower is its own aimed shot — you can't sweep the
 // whole level in one go. Towers topple & scatter (metal ceiling beams crash onto the beers below).
 // Pedestal heights raise the towers into the launch arc. NEAR towers (negative offset) are
 // crossed HIGHER by the arc, so they get a TALLER pedestal; far towers sit lower so need less.
+// Targets sit at absolute SLOT depths (X arg is ignored — SLOT is absolute). Each level mixes
+// DIFFERENT depths and DIFFERENT shapes so it both looks distinct and demands several aimed shots.
+// Big BUSY Angry-Birds forts: tall wide multi-tier ZIGGURATS (wedding-cake stacks) you topple in a
+// shower of beers, low girder BRIDGES, the odd plain TOWER. Tall towers go in NON-ADJACENT slots
+// (N/M2/F2) so the deep shots still arc 650–850px clear over the near ones (no one-shot sweep).
+const S = SLOT;
+const Z_S  = [[2,58],[2,40]];          // small ziggurat — 4 floors, ~480px
+const Z_M  = [[2,66],[2,46],[1,38]];   // medium — 5 floors, ~590px
+const Z_L  = [[3,74],[2,52],[1,40]];   // large — 6 floors, ~700px
+const Z_XL = [[3,82],[3,58],[1,40]];   // mega fortress — 7 floors, ~800px
 const LEVELS = [
-  // 1 — one tower (warm-up)
-  (B,C,G,ch,X) => tower(B,C,X,G,3,40, 0, 120),
-  // 2 — a near tower + a far tower
-  (B,C,G,ch,X) => { tower(B,C,X-220,G,3,38, 0,210); tower(B,C,X+220,G,4,38, 0,70); },
-  // 3 — two spread, one reinforced with a metal-walled base
-  (B,C,G,ch,X) => { tower(B,C,X-225,G,4,38, 1,210); tower(B,C,X+225,G,3,38, 0,70); },
-  // 4 — three spread; the tall middle one is reinforced
-  (B,C,G,ch,X) => { tower(B,C,X-330,G,3,38, 0,280); tower(B,C,X,G,5,40, 2,150); tower(B,C,X+330,G,3,38, 0,40); },
-  // 5 — three spread, two reinforced
-  (B,C,G,ch,X) => { tower(B,C,X-330,G,4,38, 2,280); tower(B,C,X,G,3,38, 0,150); tower(B,C,X+330,G,5,40, 2,40); },
-  // 6 — three wide towers, all reinforced (hard)
-  (B,C,G,ch,X) => { tower(B,C,X-340,G,4,38, 2,300); tower(B,C,X,G,5,40, 3,160); tower(B,C,X+340,G,4,38, 2,50); },
-  // 7 — four towers; outer two light, inner two with one metal floor each (12 cans)
-  (B,C,G,ch,X) => { tower(B,C,X-350,G,3,38, 0,310); tower(B,C,X-110,G,4,40, 1,170); tower(B,C,X+120,G,4,38, 1,100); tower(B,C,X+340,G,3,38, 1,40); },
-  // 8 — four towers, taller, inner pair two metal floors each (14 cans)
-  (B,C,G,ch,X) => { tower(B,C,X-350,G,4,38, 1,310); tower(B,C,X-110,G,5,40, 2,175); tower(B,C,X+120,G,5,40, 2,100); tower(B,C,X+340,G,4,38, 1,40); },
-  // 9 — four towers, all five floors, heavily reinforced throughout (16 cans)
-  (B,C,G,ch,X) => { tower(B,C,X-360,G,5,38, 2,315); tower(B,C,X-110,G,5,40, 3,180); tower(B,C,X+110,G,5,40, 2,100); tower(B,C,X+350,G,5,38, 2,40); },
-  // 10 — four towers, max height & reinforcement — the gauntlet (16 cans)
-  (B,C,G,ch,X) => { tower(B,C,X-355,G,5,40, 3,320); tower(B,C,X-110,G,6,40, 3,185); tower(B,C,X+110,G,6,40, 3,105); tower(B,C,X+345,G,5,40, 2,45); },
+  // 1 — warm-up, but a PROPER big tiered tower so it reads "fantastical" from shot one.
+  (B,C,G,ch,X) => ziggurat(B,C,S.M2,G,Z_L),
+  // 2 — NEAR + FAR: a medium fort up close, a mega fortress in the distance. Soft tap vs full send.
+  (B,C,G,ch,X) => { ziggurat(B,C,S.N,G,Z_M); ziggurat(B,C,S.F2,G,Z_XL); },
+  // 3 — a low girder BRIDGE in the mid band + a big fortress behind it (arc over the bridge to it).
+  (B,C,G,ch,X) => { bridge(B,C,S.M1-170,S.M1+170,G,70,4); ziggurat(B,C,S.F2,G,Z_L); },
+  // 4 — staggered TRIO, graduated: near fort, mid fort, mega far fortress. Three aimed sends.
+  (B,C,G,ch,X) => { ziggurat(B,C,S.N,G,Z_M); ziggurat(B,C,S.M2,G,Z_L,1); ziggurat(B,C,S.F2,G,Z_XL); },
+  // 5 — near fort, a long BRIDGE spanning the mid band, and a far fortress. Three very different shots.
+  (B,C,G,ch,X) => { ziggurat(B,C,S.N,G,Z_M); bridge(B,C,S.M1-150,S.M2-40,G,95,5); ziggurat(B,C,S.F2,G,Z_XL,1); },
+  // 6 — reinforced mid FORTRESS (red metal base) flanked by a near fort and a far fortress.
+  (B,C,G,ch,X) => { ziggurat(B,C,S.N,G,Z_M); ziggurat(B,C,S.M2,G,Z_L,3); ziggurat(B,C,S.F2,G,Z_XL,2); },
+  // 7 — the QUAD: four forts at four depths. M1 is a SHORT tower (won't clip the M2 fortress's arc).
+  (B,C,G,ch,X) => { ziggurat(B,C,S.N,G,Z_M); tower(B,C,S.M1,G,3,42, 0,0); ziggurat(B,C,S.M2,G,Z_L,1); ziggurat(B,C,S.F2,G,Z_XL,2); },
+  // 8 — near fort, a girder BRIDGE, a short far keep, and a mega fortress. Four sends.
+  (B,C,G,ch,X) => { ziggurat(B,C,S.N,G,Z_L); bridge(B,C,S.M1-130,S.M2-40,G,95,5); tower(B,C,S.F1,G,3,40, 1,0); ziggurat(B,C,S.F2,G,Z_XL,2); },
+  // 9 — near BRIDGE + three big reinforced forts across the whole depth. Every slot busy.
+  (B,C,G,ch,X) => { bridge(B,C,S.N-130,S.N+130,G,60,4); ziggurat(B,C,S.M1,G,Z_M,1); ziggurat(B,C,S.M2,G,Z_L,2); ziggurat(B,C,S.F2,G,Z_XL,3); },
+  // 10 — the GAUNTLET: near fort, a mid bridge, a reinforced mid fortress, and a double-reinforced
+  // MEGA fortress at the back. Five aimed sends and a screen full of beer.
+  (B,C,G,ch,X) => { ziggurat(B,C,S.N,G,Z_M,1); bridge(B,C,S.M1-120,S.M1+150,G,105,4); ziggurat(B,C,S.M2,G,Z_L,3); ziggurat(B,C,S.F2,G,Z_XL,4); },
 ];
 
 function buildLevel() {
@@ -258,7 +362,7 @@ function buildLevel() {
   world = engine.world;
   cans = []; blocks = []; burstP = []; tossedCan = null;
   score = 0; shots = 0; state = 'aim'; dragging = false; dragWorld = null; restT = 0;
-  celebrating = false; winPending = false; winT = 0; gameOver = false; overT = 0;
+  celebrating = false; winPending = false; winT = 0; gameOver = false; overT = 0; landed = false;
   cam.x = 0; cam.y = 0;
   winEl.classList.remove('show', 'over');
 
@@ -279,7 +383,7 @@ function buildLevel() {
   // ---- Destructible structure: wooden supports with cans perched to cascade ----
   const cw = 38, ch = 70, G = GROUND_Y;
   const addBlock = (x, y, w, h, ang=0, opts={}) => {
-    const fixed = opts.mat === 'stone' || opts.fixed;     // stone footing is STATIC; everything else falls
+    const fixed = FIXED_MATS.has(opts.mat) || opts.fixed; // immovable footing mats are STATIC; everything else falls
     const metal = opts.mat === 'metal';                   // heavy red construction beam — crushes what's below when it drops
     const b = Bodies.rectangle(x, y, w, h, { label:'block', density: metal ? 0.0028 : 0.0018, angle:ang,
       isStatic: fixed, friction:0.98, frictionStatic:9, restitution:0, chamfer:{ radius:2 } });
@@ -298,6 +402,27 @@ function buildLevel() {
   totalEl.textContent = cans.length;
   levelEl.textContent = level + 1;
   updateHud();
+  startIntroPan();
+}
+// The WIDE frame = a zoomed-out view that fits the WHOLE fort field (full tower heights) on screen.
+// Used both for the level intro and for watching the forts topple after a shot. {x,y} are the view-
+// centre minus VW/2,VH/2 (so view-centre = x+VW/2 regardless of zoom); z is the zoom (<1 = out).
+function computeWideFrame() {
+  const xs = cans.map(c=>c.ox), tops = cans.map(c=>c.oy);
+  const minX = cans.length ? Math.min(...xs) : canX(), maxX = cans.length ? Math.max(...xs) : canX();
+  const topY = cans.length ? Math.min(...tops) : GROUND_Y;
+  const x0 = minX - 240, x1 = maxX + 240;             // a little air around the outer forts
+  const y0 = topY - 110, y1 = GROUND_Y + 60;          // tallest spire down to the ground
+  const z = clamp(Math.min(VW/(x1-x0), VH/(y1-y0)), 0.40, 0.95);   // fit; never zoom IN past 0.95
+  wideFrame = { x: (x0+x1)/2 - VW/2, y: (y0+y1)/2 - VH/2, z };
+}
+// Level intro: open on the WIDE establishing shot, hold, then slowly zoom-in + pan left to Larry.
+// Skippable (any pointer down) so it never gets in the way.
+function startIntroPan() {
+  computeWideFrame();
+  introTo = { x: clamp(ANCHOR.x - VW * 0.45, -1150, WORLD_W - VW), y: 0, z: 1 };   // resting aim view on Larry
+  cam.x = wideFrame.x; cam.y = wideFrame.y; camZoom = wideFrame.z;
+  intro = true; introT = 0;
 }
 function updateHud() { scoreEl.textContent = score; shotsEl.textContent = shots; }
 
@@ -311,6 +436,7 @@ window.addEventListener('touchend', endDrag);
 
 function startDrag(e) {
   if (state !== 'aim') return;
+  if (intro) { intro = false; return; }   // first tap skips the intro — the aim camera eases in from here
   const p = toWorld(e);
   if (Vector.magnitude(Vector.sub(p, sled.position)) < 160) {
     dragging = true; dragWorld = p; canvas.classList.add('dragging');
@@ -326,7 +452,7 @@ function endDrag() {
   Body.setStatic(sled, false);
   Body.setVelocity(sled, { x: speed, y: 0 });          // gun it straight down the flats
   Body.setAngularVelocity(sled, 0);
-  state = 'fly'; shots++; restT = 0; dragWorld = null; launchBoosted = false;
+  state = 'fly'; shots++; restT = 0; dragWorld = null; launchBoosted = false; landed = false;
   // chuck the beer back over his shoulder — it keeps a little of his speed but he rockets ahead of it
   tossedCan = { x: sled.position.x - 12, y: sled.position.y - 46, vx: speed*0.3 - 2, vy: -8.5, rot: 0, vrot: 0.4, life: 1 };
   sndRev();
@@ -364,8 +490,9 @@ function checkCans() {
   for (const can of cans) {
     if (can.knocked) continue;
     const moved = Math.hypot(can.position.x - can.ox, can.position.y - can.oy);
-    if (angleOff(can.angle) > 0.4 || moved > 26) {     // tipped or clearly displaced (all cans are elevated now)
-      can.knocked = true; score++; burst(can.position.x, can.position.y); sndClatter(); updateHud();
+    if (angleOff(can.angle) > 0.7 || moved > 46) {     // must clearly TIP OVER (~40°+) or be knocked well off its spot — a graze that barely wobbles it no longer counts
+      can.knocked = true; can.pop = 1; score++; burst(can.position.x, can.position.y); sndClatter(); updateHud();
+      shakeT = Math.min(9, shakeT + 4);                 // a satisfying jolt each time a can goes down
     }
   }
   if (score === cans.length && !celebrating && !winPending) {
@@ -418,8 +545,13 @@ function startGameOver() {
 }
 
 // ---- Particles ----
-function burst(x,y){ for(let i=0;i<16;i++){ const a=Math.random()*Math.PI*2, s=2+Math.random()*5;
-  burstP.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,c:Math.random()<.5?'#ffd34d':'#fff'});}}
+function burst(x,y){
+  for(let i=0;i<14;i++){ const a=Math.random()*Math.PI*2, s=2+Math.random()*5;            // spray of dots
+    burstP.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,c:Math.random()<.5?'#ffd34d':'#fff',kind:'dot'});}
+  for(let i=0;i<5;i++){ const a=Math.random()*Math.PI*2, s=3+Math.random()*5;             // a few spinning sparkle-stars
+    burstP.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-3,life:1,c:'#ffe27a',kind:'star',rot:Math.random()*6,vrot:(Math.random()-.5)*.5,sz:5+Math.random()*4});}
+  burstP.push({x,y,vx:0,vy:0,life:1,d:0.07,c:'#ffffff',kind:'ring'});                     // a quick expanding pop ring
+}
 function spray(x,y){ for(let i=0;i<2;i++)
   burstP.push({x,y,vx:(Math.random()-0.5)*4,vy:-Math.random()*4-1,life:1,c:'#fff'}); }
 const CONFETTI = ['#ff5fa6','#ffd23a','#34d1c2','#7b61ff','#ff7a3c','#52e36b','#ffffff'];
@@ -515,7 +647,10 @@ function sndFail(){                           // sad trombone: womp-womp-womp-wo
   const seq=[[233,0.42],[207,0.42],[185,0.46],[155,0.95]]; let at=0.12;
   seq.forEach(([f,d])=>{ setTimeout(()=>tone(f,d,'sawtooth',0.12,f*0.91), at*1000); at+=d*0.88; });
 }
-function stepParticles(){ for(const p of burstP){p.x+=p.vx;p.y+=p.vy;p.vy+=0.18;p.life-=0.022;}
+function stepParticles(){ for(const p of burstP){
+    if(p.kind!=='ring'){ p.x+=p.vx; p.y+=p.vy; p.vy+=0.18; }       // ring stays put & just expands via life
+    if(p.vrot) p.rot+=p.vrot;
+    p.life-=(p.d||0.022); }
   burstP = burstP.filter(p=>p.life>0); }
 function stepTossedCan(){
   const c = tossedCan; if(!c) return;
@@ -537,22 +672,38 @@ function stepSnow(){ for(const f of snow){ f.y+=f.s; f.x+=f.drift;
 // ---- Camera ----
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 function stepCamera() {
-  let tx;
-  if (state === 'aim' || celebrating || gameOver) {
-    tx = sled.position.x - VW * 0.45;               // stay on Larry for aim / win / wipeout
-  } else {
-    const speed = Vector.magnitude(sled.velocity);
-    const onGround = sled.position.y > GROUND_Y - 50;
-    if (launchBoosted && onGround && speed < 6) {
-      tx = canX() - VW * 0.5;                       // sled has settled — pan to the towers
-    } else {
-      tx = sled.position.x - VW * 0.32;             // follow the sled while it's flying/sliding
+  // Level intro: open on the WIDE establishing shot (whole field, full heights), hold, then slowly
+  // ease the zoom IN and pan LEFT to Larry at the launch.
+  if (intro) {
+    if (introT >= INTRO_HOLD + INTRO_PAN) { intro = false; }
+    else {
+      const p = Math.max(0, (introT - INTRO_HOLD) / INTRO_PAN);     // 0..1 after the hold
+      const e = p < 0.5 ? 2*p*p : 1 - (-2*p+2)*(-2*p+2)/2;          // ease-in-out
+      cam.x   = wideFrame.x + (introTo.x - wideFrame.x) * e;
+      cam.y   = wideFrame.y + (introTo.y - wideFrame.y) * e;
+      camZoom = wideFrame.z + (introTo.z - wideFrame.z) * e;
+      return;
     }
   }
-  tx = clamp(tx, -1150, WORLD_W - VW);
-  const ty = clamp(sled.position.y - VH * 0.62, -360, 0);
-  cam.x += (tx - cam.x) * 0.09;
-  cam.y += (ty - cam.y) * 0.09;
+  let tx, ty, tz;
+  if (state === 'aim' || celebrating || gameOver) {
+    tx = clamp(sled.position.x - VW * 0.45, -1150, WORLD_W - VW);   // close on Larry to aim / cheer / wipe out
+    ty = 0; tz = 1;
+  } else if (!landed) {
+    // run-up, launch & arc — stay CLOSE (z=1) and follow the snowmobile so it's never off-screen.
+    tz = 1;
+    tx = clamp(sled.position.x - VW * 0.32, -1150, WORLD_W - VW);   // lookahead: sled left-of-centre
+    ty = clamp(sled.position.y - VH * 0.62, -360, 0);              // follow the arc vertically too
+  } else {
+    // it's back on the ground (impact!) — NOW pull WIDE to watch the forts topple (even two at once).
+    tz = wideFrame.z;
+    tx = (sled.position.x + 0.14 * VW / tz) - VW / 2;
+    ty = wideFrame.y;
+  }
+  cam.x   += (tx - cam.x) * 0.10;
+  cam.y   += (ty - cam.y) * 0.09;
+  // zoom OUT slow & gradual (savour the forts toppling); zoom back IN snappy so aiming isn't delayed
+  camZoom += (tz - camZoom) * (tz < camZoom ? 0.022 : 0.11);
 }
 
 // True only when EVERYTHING has stopped moving — the sled AND every can/board.
@@ -568,7 +719,7 @@ function maybeRespawn(dt) {
   if (state !== 'fly') return;
   const off = sled.position.x > WORLD_W+300 || sled.position.x < ANCHOR.x - 200 || sled.position.y > VH+400;
   restT = sceneSettled() ? restT + dt : 0;       // only count rest once nothing is still wobbling
-  if (off || restT > 700) {
+  if (off || restT > 1200) {                     // linger on the wide settled scene (so the slow zoom-out lands) before respawning
     if (shots >= MAX_TRIES && score < cans.length) { startGameOver(); return; }   // out of tries, level not cleared
     engineStop(); Composite.remove(world, sled); sled = makeSled(); state = 'aim';
   }
@@ -582,12 +733,24 @@ function local(body, draw){ ctx.save(); ctx.translate(body.position.x, body.posi
   ctx.rotate(body.angle); draw(); ctx.restore(); }
 
 function sky() {
+  // modern dusk gradient — deep indigo up top melting into a warm sunset horizon
   const g = ctx.createLinearGradient(0,0,0,VH);
-  g.addColorStop(0,'#8fc7ff'); g.addColorStop(.55,'#bfe2ff'); g.addColorStop(1,'#eaf6ff');
+  g.addColorStop(0,   '#241a5c');   // indigo
+  g.addColorStop(0.34,'#5b3f9e');   // violet
+  g.addColorStop(0.60,'#b85a92');   // rose
+  g.addColorStop(0.80,'#f1875f');   // coral
+  g.addColorStop(1,   '#ffd6a0');   // peach horizon glow
   ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
-  const s = ctx.createRadialGradient(VW-220,130,10,VW-220,130,160);
-  s.addColorStop(0,'rgba(255,255,240,.9)'); s.addColorStop(1,'rgba(255,255,240,0)');
-  ctx.fillStyle=s; ctx.fillRect(VW-440,-40,440,360);
+  // low sunset sun + soft bloom, sitting near the horizon for that golden-hour look
+  const sunX = VW*0.66, sunY = VH*0.60;
+  const halo = ctx.createRadialGradient(sunX,sunY,8, sunX,sunY,300);
+  halo.addColorStop(0,'rgba(255,238,205,.95)'); halo.addColorStop(.35,'rgba(255,196,150,.45)');
+  halo.addColorStop(1,'rgba(255,196,150,0)');
+  ctx.fillStyle=halo; ctx.fillRect(sunX-320,sunY-320,640,640);
+  ctx.beginPath(); ctx.arc(sunX,sunY,58,0,Math.PI*2);
+  const disc = ctx.createRadialGradient(sunX,sunY-14,6, sunX,sunY,58);
+  disc.addColorStop(0,'#fff6e6'); disc.addColorStop(1,'#ffd58a');
+  ctx.fillStyle=disc; ctx.fill();
 }
 function mountains(baseY, col, par) {
   ctx.save(); ctx.translate(-cam.x*par, -cam.y*par*0.5);
@@ -596,7 +759,7 @@ function mountains(baseY, col, par) {
     [980,baseY-150],[1280,baseY-330],[1620,baseY-120],[2000,baseY-220]];
   for(const [x,y] of pts) ctx.lineTo(x,y);
   ctx.lineTo(2200, GROUND_Y+300); ctx.lineTo(-200, GROUND_Y+300); ctx.closePath(); ctx.fill();
-  ctx.fillStyle='rgba(255,255,255,.6)';
+  ctx.fillStyle='rgba(255,224,196,.55)';   // snowcaps catching the warm sunset
   for(const [x,y] of pts){ ctx.beginPath(); ctx.moveTo(x,y);
     ctx.lineTo(x-22,y+34); ctx.lineTo(x+22,y+34); ctx.closePath(); ctx.fill(); }
   ctx.restore();
@@ -651,8 +814,12 @@ const JUNK = [
 function drawJunk(){ for (const j of JUNK) { if (j.t===0) drawCar(j.x,j.sc,j.c); else if (j.t===1) drawMoto(j.x,j.sc); else drawTractor(j.x,j.sc); } }
 
 function ground() {
-  ctx.fillStyle='#fdfeff'; ctx.fillRect(-1900, GROUND_Y, WORLD_W+3800, VH-GROUND_Y+300);
-  ctx.fillStyle='#eef5fb'; ctx.fillRect(-1900, GROUND_Y, WORLD_W+3800, 6);
+  // dusk snow: warm sunset sheen on top fading to cool blue shadow
+  const gx = -1900, gw = WORLD_W+3800, gy = GROUND_Y;
+  const g = ctx.createLinearGradient(0, gy, 0, gy + 220);
+  g.addColorStop(0, '#fbe9e6'); g.addColorStop(.5, '#e7e6f3'); g.addColorStop(1, '#cdd3e8');
+  ctx.fillStyle=g; ctx.fillRect(gx, gy, gw, VH-gy+300);
+  ctx.fillStyle='rgba(255,236,210,.85)'; ctx.fillRect(gx, gy, gw, 5);   // warm-lit crest line
 }
 function drawRamp() {
   const { x1, topY, pts } = RAMP;
@@ -930,15 +1097,60 @@ function drawDabHead() {
 function drawBlock(b) {
   local(b, () => {
     const w = b.w, h = b.h;
+    // soft drop shadow for modern flat-design depth
+    ctx.fillStyle='rgba(36,22,68,.20)'; ctx.beginPath(); rr(-w/2+4,-h/2+6,w,h,6); ctx.fill();
     if (b.mat === 'stone') {                                   // immovable stone footing
       ctx.beginPath(); rr(-w/2,-h/2,w,h,4); fillOutline('#9aa0a8', 3);
       ctx.strokeStyle = 'rgba(28,21,48,.28)'; ctx.lineWidth = 1.5;
-      for (let y=-h/2+13; y<h/2-4; y+=15){ ctx.beginPath(); ctx.moveTo(-w/2+3,y); ctx.lineTo(w/2-3,y); ctx.stroke(); }
+      for (let y=-h/2+13; y<h/2-4; y+=15){ const off=(Math.floor((y+999)/15)%2)?6:-6;   // staggered courses
+        ctx.beginPath(); ctx.moveTo(-w/2+3,y); ctx.lineTo(w/2-3,y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(off,y); ctx.lineTo(off,Math.min(h/2-4,y+15)); ctx.stroke(); }
       ctx.fillStyle='rgba(255,255,255,.2)'; ctx.fillRect(-w/2+3,-h/2+4,4,h-8);
       return;
     }
-    if (b.mat === 'metal') {                                   // heavy RED construction girder
-      ctx.beginPath(); rr(-w/2,-h/2,w,h,3); fillOutline('#d8352b', 3);
+    if (b.mat === 'ice') {                                     // glassy blue ice block
+      ctx.beginPath(); rr(-w/2,-h/2,w,h,5); fillOutline('#bfeaff', 3);
+      ctx.fillStyle='rgba(255,255,255,.55)'; ctx.fillRect(-w/2+4,-h/2+4,5,h-8);          // left shine
+      ctx.strokeStyle='rgba(255,255,255,.7)'; ctx.lineWidth=2;                            // diagonal glints + a crack
+      ctx.beginPath(); ctx.moveTo(-w/2+6,-h/2+10); ctx.lineTo(-w/4,h/2-8); ctx.stroke();
+      ctx.strokeStyle='rgba(90,150,200,.5)'; ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.moveTo(w/4,-h/2+8); ctx.lineTo(w/6,4); ctx.lineTo(w/3,h/2-6); ctx.stroke();
+      return;
+    }
+    if (b.mat === 'brick') {                                   // warm terracotta brickwork
+      ctx.beginPath(); rr(-w/2,-h/2,w,h,4); fillOutline('#e07a55', 3);
+      ctx.strokeStyle='rgba(80,30,10,.4)'; ctx.lineWidth=1.6; let row=0;
+      for (let y=-h/2+12; y<h/2-3; y+=12){
+        ctx.beginPath(); ctx.moveTo(-w/2+3,y); ctx.lineTo(w/2-3,y); ctx.stroke();
+        const off=(row%2)?0:w/4;                                                          // running-bond verticals
+        for (let x=-w/2+off; x<w/2-4; x+=w/2){ if(x>-w/2+3&&x<w/2-3){ ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,Math.min(h/2-3,y+12)); ctx.stroke(); } }
+        row++;
+      }
+      ctx.fillStyle='rgba(255,255,255,.16)'; ctx.fillRect(-w/2+3,-h/2+4,w-6,2);
+      return;
+    }
+    if (b.mat === 'snow') {                                    // packed snow block, soft & rounded
+      ctx.beginPath(); rr(-w/2,-h/2,w,h,9); fillOutline('#f3f9ff', 3);
+      ctx.fillStyle='rgba(170,205,235,.5)'; ctx.fillRect(-w/2+5,h/2-6,w-10,3);            // cool shadow at the foot
+      ctx.fillStyle='rgba(255,255,255,.9)'; ctx.fillRect(-w/2+5,-h/2+5,w-10,4);           // bright cap
+      ctx.fillStyle='rgba(150,190,225,.7)';                                               // sparkles
+      for (const [sx,sy] of [[-w/5,-h/6],[w/4,h/8],[0,h/3],[w/6,-h/3]]){ ctx.beginPath(); ctx.arc(sx,sy,1.4,0,Math.PI*2); ctx.fill(); }
+      return;
+    }
+    if (b.mat === 'timber') {                                  // stacked timber piling (vertical logs)
+      ctx.beginPath(); rr(-w/2,-h/2,w,h,5); fillOutline('#b07d44', 3);
+      ctx.strokeStyle='rgba(60,35,15,.45)'; ctx.lineWidth=1.6;
+      const cols=Math.max(1,Math.round(w/16));
+      for (let i=1;i<cols;i++){ const x=-w/2+i*(w/cols); ctx.beginPath(); ctx.moveTo(x,-h/2+3); ctx.lineTo(x,h/2-3); ctx.stroke(); }
+      ctx.strokeStyle='rgba(255,235,200,.4)';                                             // highlight stave
+      ctx.beginPath(); ctx.moveTo(-w/2+5,-h/2+3); ctx.lineTo(-w/2+5,h/2-3); ctx.stroke();
+      ctx.fillStyle='rgba(60,35,15,.4)';                                                  // a couple of knots
+      ctx.beginPath(); ctx.arc(-w/6,h/6,2.2,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(w/5,-h/5,1.8,0,Math.PI*2); ctx.fill();
+      return;
+    }
+    if (b.mat === 'metal') {                                   // heavy construction girder (modern coral-red)
+      ctx.beginPath(); rr(-w/2,-h/2,w,h,3); fillOutline('#ff5d54', 3);
       ctx.fillStyle='rgba(255,255,255,.28)'; ctx.fillRect(-w/2+2,-h/2+2,w-4,3);    // top highlight
       ctx.fillStyle='rgba(0,0,0,.22)';       ctx.fillRect(-w/2+2, h/2-5,w-4,3);    // bottom shade (I-beam flange)
       ctx.fillStyle='#3a1410';                                                     // rivets along the beam
@@ -947,8 +1159,8 @@ function drawBlock(b) {
         ctx.beginPath(); ctx.arc(along?t:0, along?0:t, 1.7, 0, Math.PI*2); ctx.fill(); }
       return;
     }
-    // ---- plain wooden plank (classic Angry-Birds): flat board, wood-brown, light grain ----
-    ctx.beginPath(); rr(-w/2,-h/2,w,h,3); fillOutline('#cf9b54', 3);
+    // ---- plain wooden plank (classic Angry-Birds): flat board, warm tan, light grain ----
+    ctx.beginPath(); rr(-w/2,-h/2,w,h,3); fillOutline('#e0a767', 3);
     ctx.strokeStyle = 'rgba(120,72,28,.5)'; ctx.lineWidth = 1.4;
     if (w >= h) { for (let yy=-h/2+5; yy<h/2-3; yy+=6){ ctx.beginPath(); ctx.moveTo(-w/2+4,yy); ctx.lineTo(w/2-4,yy); ctx.stroke(); } }
     else        { for (let xx=-w/2+5; xx<w/2-3; xx+=6){ ctx.beginPath(); ctx.moveTo(xx,-h/2+4); ctx.lineTo(xx,h/2-4); ctx.stroke(); } }
@@ -958,6 +1170,12 @@ function drawBlock(b) {
 function drawCan(can) {
   local(can, () => {
     const w=42, h=74;
+    // soft golden glow on LIVE targets (drawn before the squash so it stays round)
+    if(!can.knocked){ const g=ctx.createRadialGradient(0,0,3,0,0,38);
+      g.addColorStop(0,'rgba(255,214,90,.42)'); g.addColorStop(1,'rgba(255,214,90,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,38,0,Math.PI*2); ctx.fill(); }
+    // squash-&-stretch pop on impact, then settle
+    if(can.pop){ ctx.scale(1+can.pop*0.42, 1-can.pop*0.28); can.pop*=0.80; if(can.pop<0.02) can.pop=0; }
     ctx.beginPath(); rr(-w/2,-h/2,w,h,6);
     fillOutline(can.knocked ? '#9aa0a6' : `hsl(${can.hue},88%,55%)`, 3);
     // big white label taking up most of the can
@@ -1002,7 +1220,17 @@ function drawPowerGauge() {
   }
 }
 function drawParticles(){ for(const p of burstP){ ctx.globalAlpha=Math.max(0,p.life);
-  ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill(); } ctx.globalAlpha=1; }
+  if(p.kind==='ring'){                                            // expanding shockwave pop
+    ctx.strokeStyle=p.c; ctx.lineWidth=3*p.life; ctx.beginPath();
+    ctx.arc(p.x,p.y,(1-p.life)*40,0,Math.PI*2); ctx.stroke();
+  } else if(p.kind==='star'){                                     // 4-point sparkle
+    ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot||0); ctx.fillStyle=p.c;
+    const s=p.sz||6; ctx.beginPath();
+    for(let k=0;k<4;k++){ const a=k*Math.PI/2; ctx.lineTo(Math.cos(a)*s,Math.sin(a)*s); ctx.lineTo(Math.cos(a+0.39)*s*0.34,Math.sin(a+0.39)*s*0.34); }
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  } else {
+    ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill();
+  } } ctx.globalAlpha=1; }
 function drawSnow(){ ctx.fillStyle='rgba(255,255,255,.85)';
   for(const f of snow){ ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,Math.PI*2); ctx.fill(); } }
 
@@ -1026,8 +1254,11 @@ function physicsStep() {
       Body.setAngularVelocity(sled, sled.angularVelocity + dir * 0.05);   // a flip kick (gentler so you can still aim)
       launchBoosted = true;
     }
-    // air control — ONLY while airborne; once he touches down, controls stop
-    if (airborne) {
+    // first touchdown after the flight latches `landed` — from then on controls are DEAD and the
+    // sled brakes hard, so you can't hold ◄/► to tumble a short jump forward into the towers.
+    if (launchBoosted && !airborne && sled.position.y > GROUND_Y - 52) landed = true;
+    // air control — ONLY while airborne AND before the first landing; once he touches down, controls stop
+    if (airborne && !landed) {
       const AIR = 0.004, SPIN_CAP = 0.26;
       if (keys.left)  Body.setAngularVelocity(sled, Math.max(-SPIN_CAP, sled.angularVelocity - AIR));
       if (keys.right) Body.setAngularVelocity(sled, Math.min( SPIN_CAP, sled.angularVelocity + AIR));
@@ -1042,10 +1273,12 @@ function physicsStep() {
     Body.setVelocity(sled, { x: sled.velocity.x / 0.99940, y: sled.velocity.y });
   }
   // ground brake: AFTER it has flown (launchBoosted) and dropped back near the snow, scrub its
-  // slide/spin so it doesn't skate forever. Gated on launchBoosted so it never brakes the runway launch.
-  if (launchBoosted && state === 'fly' && !celebrating && sled.position.y > GROUND_Y - 44) {
+  // slide/spin so it doesn't skate OR tumble forever. Gated on launchBoosted so it never brakes the
+  // runway launch. Once `landed`, the brake applies even through little bounces (so a held ◄/► can't
+  // pump it forward) — the same decisive stopping drag in front of the towers as behind them.
+  if (launchBoosted && state === 'fly' && !celebrating && (landed || sled.position.y > GROUND_Y - 44)) {
     Body.setVelocity(sled, { x: sled.velocity.x * 0.86, y: sled.velocity.y });
-    Body.setAngularVelocity(sled, sled.angularVelocity * 0.85);
+    Body.setAngularVelocity(sled, sled.angularVelocity * (landed ? 0.80 : 0.85));
   }
   checkCans();
   // transition beat: after the last can falls, let the sled finish flying & settle,
@@ -1084,11 +1317,12 @@ function loop(now) {
     if (celebrateBig && Math.random() < 0.22) confetti(cam.x + Math.random()*VW, cam.y + Math.random()*VH*0.5, 14);
   }
   if (gameOver) overT += frame;
+  if (intro) introT += frame;
   stepParticles(); stepTossedCan(); stepSnow(); stepCamera();
 
   // clear full backing (letterbox bars)
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-  ctx.fillStyle = '#0b1a2b'; ctx.fillRect(0, 0, canvas.width/view.dpr, canvas.height/view.dpr);
+  ctx.fillStyle = '#161033'; ctx.fillRect(0, 0, canvas.width/view.dpr, canvas.height/view.dpr);
   // establish uniform game transform (scaled + centred), clipped to the play area
   ctx.setTransform(view.dpr*view.scale, 0, 0, view.dpr*view.scale, view.offX*view.dpr, view.offY*view.dpr);
   ctx.save();
@@ -1096,10 +1330,16 @@ function loop(now) {
 
   // screen-space sky
   sky();
-  mountains(540, '#cfe2f2', 0.20);
-  mountains(470, '#bcd6ec', 0.34);
-  // world-space (camera) layer
-  ctx.save(); ctx.translate(-cam.x, -cam.y);
+  mountains(540, '#9a80b8', 0.20);   // hazy dusk-mauve far range
+  mountains(470, '#6f4f95', 0.34);   // deeper violet near range
+  // world-space (camera) layer — with a quick decaying screen-shake on impacts
+  const sh = shakeT > 0.3 ? shakeT : 0;
+  const shx = sh ? (Math.random()*2-1)*sh : 0, shy = sh ? (Math.random()*2-1)*sh*0.7 : 0;
+  shakeT *= 0.82;
+  ctx.save();
+  ctx.translate(VW/2 + shx, VH/2 + shy);              // zoom around the viewport centre
+  ctx.scale(camZoom, camZoom);
+  ctx.translate(-(cam.x + VW/2), -(cam.y + VH/2));
   ground();
   drawJunk();                                          // snowy scrap-yard along the approach
   for (const x of treeXs) tree(x, 0.9 + (x%7)/14);

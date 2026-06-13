@@ -13,14 +13,19 @@ No install, no sign-up — it runs right in your browser (desktop or mobile).
 
 ## 🎮 How to play
 
-1. **Drag back** from the snowmobile and **release** to launch it off the kicker. The farther
-   you pull, the more power — pull back hard to *send it*. (You can't over-power it past the
-   towers, so when in doubt, send it.)
-2. A throttle gauge, an **mph readout**, and a dotted **flight-path preview** show where you'll
-   land while you aim.
-3. Once you're airborne, tap the arrows to **flip and level out** so you smash into the cans.
-4. Knock down **every can** to clear the level. There are **10 levels**, each a bigger, taller,
-   more ridiculous tower than the last.
+1. Each level opens with a quick **camera sweep** over the targets so you can size up the layout
+   before you shoot.
+2. **Drag back** from the snowmobile and **release** to launch it off the kicker. The farther
+   you pull, the more power — but **power is your aim**: targets sit at different distances, so a
+   soft pull drops onto a near one while a full send arcs clean *over* it to reach the far ones.
+3. A throttle gauge, an **mph readout**, and a dotted **flight-path preview** show where you'll
+   land while you aim — match the arc to the fort you want.
+4. Once you're airborne, tap the arrows to **flip and level out** so you smash into the cans.
+   On the tougher levels a few cans are tucked where only a well-steered mid-air nudge reaches them.
+5. Knock down **every can** to clear the level. There are **10 levels** of big, rickety,
+   multi-tiered beer forts — perched on ice, brick, stone, snow and timber bases — spread from near
+   to far and mixed with horizontal **girder bridges**. Later levels pack a fort in every distance
+   band, so you dial in a different shot for each.
 5. Clear a level and the rider leaps off to celebrate while a crowd of orange-parka spectators
    cheers him on. 🍻
 
@@ -40,6 +45,8 @@ You get **5 launches per level** — knock down all the cans before you run out 
 
 - A single self-contained `index.html` — HTML5 Canvas for rendering, the
   [Matter.js](https://brm.io/matter-js/) engine for physics. No build step, no framework.
+- All art is **hand-drawn procedural vector** (no image assets) in a modern dusk/synthwave style —
+  gradient sunset sky, glassmorphism HUD, soft shadows — so it stays crisp at any resolution.
 - Matter.js is vendored locally (`matter.min.js`), so the game has **zero external
   dependencies** and works fully offline.
 - All sound effects are synthesized at runtime with the Web Audio API (no audio files).
