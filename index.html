@@ -72,7 +72,7 @@
     <div class="stat">Cans down: <span id="score">0</span> / <span id="total">0</span></div>
     <div class="stat">Launches: <span id="shots">0</span> / 5</div>
   </div>
-  <div id="help">Drag back &amp; release to send it off the kicker • ◄ ► / A,D to flip &amp; level out mid-air • R resets • M mutes <span style="opacity:.45">• build 2026-06-12</span></div>
+  <div id="help">Drag back &amp; release to send it off the kicker • ◄ ► / A,D to flip &amp; level out mid-air • R resets • M mutes <span style="opacity:.45">• build 2026-06-13</span></div>
   <button id="restartgame">⟲ Reset game</button>
   <button id="restart">↻ Retry level</button>
   <div id="flipL" class="flipbtn">◄</div>
@@ -723,6 +723,7 @@ function maybeRespawn(dt) {
   if (off || restT > 1200) {                     // linger on the wide settled scene (so the slow zoom-out lands) before respawning
     if (shots >= MAX_TRIES && score < cans.length) { startGameOver(); return; }   // out of tries, level not cleared
     engineStop(); Composite.remove(world, sled); sled = makeSled(); state = 'aim';
+    startIntroPan();   // re-show remaining targets before each shot (skippable by tap)
   }
 }
 
