@@ -10,22 +10,23 @@
   #wrap { position: relative; width: 100vw; height: 100dvh; }
   canvas { display: block; width: 100%; height: 100%; cursor: grab; }
   canvas.dragging { cursor: grabbing; }
-  /* glassy HUD card */
-  #hud { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px); left: calc(env(safe-area-inset-left, 0px) + 16px); color: #fff;
-    pointer-events: none; padding: 12px 16px; border-radius: 18px;
+  /* glassy HUD card — sizes scale with viewport HEIGHT (the tight dimension in landscape) so it
+     stays compact on a phone but full-size on desktop */
+  #hud { position: absolute; top: calc(env(safe-area-inset-top, 0px) + clamp(8px,1.8vh,14px)); left: calc(env(safe-area-inset-left, 0px) + clamp(10px,1.8vh,16px)); color: #fff;
+    pointer-events: none; padding: clamp(6px,1.5vh,12px) clamp(9px,2vh,16px); border-radius: clamp(10px,2.2vh,18px);
     background: rgba(28,18,58,.34); backdrop-filter: blur(12px) saturate(1.2); -webkit-backdrop-filter: blur(12px) saturate(1.2);
     border: 1px solid rgba(255,255,255,.16); box-shadow: 0 8px 30px rgba(20,10,45,.35); }
-  #hud h1 { margin: 0 0 7px; font-size: 21px; letter-spacing: .3px; font-weight: 800;
+  #hud h1 { margin: 0 0 clamp(2px,0.8vh,7px); font-size: clamp(12px,3.4vh,21px); letter-spacing: .3px; font-weight: 800; white-space: nowrap;
     background: linear-gradient(90deg,#ffe7b8,#ff9aa8 55%,#c59bff); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  #hud .stat { font-size: 14px; font-weight: 600; opacity: .92; letter-spacing: .2px; line-height: 1.5; }
+  #hud .stat { font-size: clamp(9px,2.3vh,14px); font-weight: 600; opacity: .92; letter-spacing: .2px; line-height: 1.42; }
   #hud .stat span { font-weight: 800; color: #ffe1a8; }
   #help { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); left: calc(env(safe-area-inset-left, 0px) + 16px); color: #f3ecff;
     font-size: 13px; font-weight: 500; opacity: .8; text-shadow: 0 1px 4px rgba(20,10,40,.7); }
-  #restart, #restartgame { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px); color: #fff; font-weight: 700; font-size: 13px;
+  #restart, #restartgame { position: absolute; top: calc(env(safe-area-inset-top, 0px) + clamp(8px,1.8vh,14px)); color: #fff; font-weight: 700; font-size: clamp(11px,2.2vh,13px);
     background: rgba(40,26,74,.4); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,.22); border-radius: 999px; padding: 9px 16px; cursor: pointer; transition: background .15s, transform .1s; }
-  #restart { right: calc(env(safe-area-inset-right, 0px) + 16px); }
-  #restartgame { right: calc(env(safe-area-inset-right, 0px) + 150px); }
+    border: 1px solid rgba(255,255,255,.22); border-radius: 999px; padding: clamp(6px,1.3vh,9px) clamp(11px,1.8vh,16px); cursor: pointer; transition: background .15s, transform .1s; }
+  #restart { right: calc(env(safe-area-inset-right, 0px) + clamp(10px,1.8vh,16px)); }
+  #restartgame { right: calc(env(safe-area-inset-right, 0px) + clamp(96px,16vh,150px)); }
   #restart:hover, #restartgame:hover { background: rgba(255,255,255,.28); }
   #restart:active, #restartgame:active { transform: scale(.95); }
   #win { position: absolute; inset: 0; display: none; align-items: center;

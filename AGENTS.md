@@ -218,7 +218,9 @@ vertical and beams resting flat.
   mauve/violet silhouettes with peach-lit snowcaps; `ground()` is dusk snow (warm crest → cool
   shadow). Forts use modern flat material colors + a **soft drop shadow** in `drawBlock` for depth;
   girders are coral-red. HUD is a **glassmorphism** card (`backdrop-filter: blur`, gradient title)
-  with pill buttons; letterbox/gate are deep indigo `#161033`. A light **screen-shake** (`shakeT`,
+  with pill buttons; its font sizes/padding use `clamp(..,vh,..)` so it scales with viewport HEIGHT
+  (the tight dimension in mobile landscape — keeps it a small corner chip on phones, full-size on
+  desktop); letterbox/gate are deep indigo `#161033`. A light **screen-shake** (`shakeT`,
   bumped in `checkCans`, applied to the world-layer translate, decays ×0.82/frame) adds impact juice.
 - **Juice (all procedural):** knocking a can fires `burst()` = dots + spinning **sparkle-stars** +
   an expanding **pop ring** (particles carry a `kind`: `dot`/`star`/`ring`, handled in `stepParticles`
